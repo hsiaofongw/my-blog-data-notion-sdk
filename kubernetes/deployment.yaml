@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: get-notion-rss-feeds
+spec:
+  selector:
+    matchLabels:
+      app: get-notion-rss-feeds
+  template:
+    metadata:
+      labels:
+        app: get-notion-rss-feeds
+    spec:
+      containers:
+        - image: ghcr.io/hsiaofongw/get-notion-rss-feeds:0.0.1
+          name: get-notion-rss-feeds
+          env:
+            - name: NOTION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: notion-integration-keys
+                  key: get-notion-rss-feeds-integration-key
+                  optional: false
+            - name: NOTION_DB_ID
+              valueFrom:
+                secretKeyRef:
+                  name: notion-secrets
+                  key: notion-article-db-id
+                  optional: false
+          ports:
+            - containerPort: 3000
+          resources:
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
