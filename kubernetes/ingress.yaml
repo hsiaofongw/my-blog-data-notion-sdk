@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: get-notion-rss-feeds
+  annotations:
+    kubernetes.io/ingress.class: "public"
+    cert-manager.io/issuer: "letsencrypt-staging"
+spec:
+  tls:
+    - hosts:
+        - exploro.one
+      secretName: exploro-one-tls-secret
+  rules:
+    - host: exploro.one
+      http:
+        paths:
+          - path: /feed/atom
+            pathType: Prefix
+            backend:
+              service:
+                name: get-notion-rss-feeds
+                port:
+                  number: 80
