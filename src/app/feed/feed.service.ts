@@ -116,7 +116,12 @@ export class FeedService {
 
   async getFeed() {
     const now = new Date();
-    const tickIdx = Math.floor(now.valueOf() / (600 * 1000));
+    const tickIdx = Math.floor(now.valueOf() / (12 * 60 * 60 * 1000));
+
+    this.logger.log('Enter getFeed()');
+    this.logger.log('Last tickIdx: ' + String(this.tickIdx));
+    this.logger.log('Current tickIdx: ' + String(tickIdx));
+
     if (tickIdx === this.tickIdx) {
       this.logger.log('Cache hit.');
       return this.feeds;
