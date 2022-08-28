@@ -12,7 +12,7 @@ spec:
         app: get-notion-rss-feeds
     spec:
       containers:
-        - image: ghcr.io/hsiaofongw/get-notion-rss-feeds:0.0.1
+        - image: ghcr.io/hsiaofongw/get-notion-rss-feeds:0.0.2
           name: get-notion-rss-feeds
           env:
             - name: NOTION_TOKEN

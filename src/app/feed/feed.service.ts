@@ -5,8 +5,6 @@ import { parseISO } from 'date-fns';
 
 @Injectable()
 export class FeedService {
-  private tickIdx = 0;
-  private feeds: string = '';
   private readonly logger = new Logger(FeedService.name);
 
   constructor() { }
@@ -26,47 +24,47 @@ export class FeedService {
     getPostDescription: (_: T) => string,
     getPostDate: (_: T) => Date,
   ) {
-  
+
     const fakeName = '探索子';  // fake means not real
     const title = `${fakeName}博客`;
     const name = title;
     const description = '';
     const homepage = 'https://exploro.one';
     const id = homepage;
-    const link  = homepage;
+    const link = homepage;
     const favicon = "https://www.gravatar.com/avatar/dfa26ed25a72c40d602d33d854dd6f07?s=200";
     const copyright = '';
     const updated = new Date();
     const generator = '';
     const email = 'i@beyondstars.xyz';
-  
+
     const feedLinks = {
       json: homepage + '/feed/json',
       atom: homepage + '/feed/atom',
     };
-  
+
     const author = { name, email, link };
-  
+
     let feed = new Feed({
-        title, description, id, link, 
-        favicon, copyright, updated, generator,
-        feedLinks, author
+      title, description, id, link,
+      favicon, copyright, updated, generator,
+      feedLinks, author
     });
-  
+
     posts.forEach(post => {
       const title = getPostTitle(post);
       const id = getPostId(post);
       const link = getPostLink(post);
       const description = getPostDescription(post);
       const date = getPostDate(post);
-  
+
       feed.addItem({
         title, id, link, description, date
       });
     });
-  
+
     feed.addCategory("Notes");
-  
+
     return feed;
   }
 
@@ -80,11 +78,11 @@ export class FeedService {
     const response = await notion.databases.query({
       database_id: dbId,
     });
-    
+
     this.logger.log('Fetching...');
     let posts: Array<{ name: string, updated: Date, link: string }> = [];
     for (const page of response.results) {
-      this.logger.log('Page:', page);
+      this.logger.log(`Got page id: ${page.id}`);
       const link = (page as any).url;
       this.logger.log(`Link: ${link}`);
       const properties = (page as any).properties as any;
@@ -104,34 +102,20 @@ export class FeedService {
       }
     }
 
+    this.logger.log('Feed generated.');
+
     return this.makeFeeds(
-      posts, 
-      (p) => p.name, 
-      (p) => p.name+p.updated.toISOString(),
+      posts,
+      (p) => p.name,
+      (p) => p.name + p.updated.toISOString(),
       (p) => p.link,
       (_) => '',
       (p) => p.updated,
     );
   }
 
-  async getFeed() {
-    const now = new Date();
-    const tickIdx = Math.floor(now.valueOf() / (12 * 60 * 60 * 1000));
-
-    this.logger.log('Enter getFeed()');
-    this.logger.log('Last tickIdx: ' + String(this.tickIdx));
-    this.logger.log('Current tickIdx: ' + String(tickIdx));
-
-    if (tickIdx === this.tickIdx) {
-      this.logger.log('Cache hit.');
-      return this.feeds;
-    }
-
-    this.logger.log('Cache missed.');
-
+  async getAtomFeed() {
     const feed = await this.getFeedsFromNotion();
-    this.feeds = feed.atom1();
-    this.tickIdx = tickIdx;
-    return this.feeds;
+    return feed.atom1();
   }
 }
