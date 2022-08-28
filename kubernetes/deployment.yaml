@@ -5,6 +5,7 @@ metadata:
 data:
   redis_hostname: "my-redis"
   redis_port: "6379"
+  homepage_url: "https://hsiaofongw.notion.site/"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -23,6 +24,12 @@ spec:
         - image: ghcr.io/hsiaofongw/get-notion-rss-feeds:0.0.3
           name: get-notion-rss-feeds
           env:
+            - name: EXPEDIENT_HOMEPAGE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap
+                  key: homepage_url
+                  optional: false
             - name: REDIS_HOSTNAME
               valueFrom:
                 configMapKeyRef:
