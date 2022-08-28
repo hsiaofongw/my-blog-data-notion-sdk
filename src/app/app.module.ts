@@ -4,10 +4,11 @@ import { FeedService } from './feed/feed.service';
 import { IdIssuerMiddleware } from './id-issuer.middleware';
 import { LoggerMiddleware } from './logger.middleware';
 import { RedisCacheService } from './redis-cache/redis-cache.service';
+import { HomeController } from './home/home.controller';
 
 @Module({
   imports: [],
-  controllers: [FeedController],
+  controllers: [FeedController, HomeController],
   providers: [FeedService, RedisCacheService],
 })
 export class AppModule implements NestModule {
