@@ -10,6 +10,14 @@ export class RedisCacheService {
     process.env.REDIS_HOSTNAME
   );
 
+  setString(key: string, value: string): Promise<'OK'> {
+    return this.redis.set(key, value);
+  }
+
+  getString(key: string): Promise<string> {
+    return this.redis.get(key);
+  }
+
   setObject(key: string, value: CacheEntry): Promise<'OK'> {
     return this.redis.set(key, JSON.stringify(value));
   }
