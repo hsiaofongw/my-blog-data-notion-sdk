@@ -21,7 +21,7 @@ spec:
         app: get-notion-rss-feeds
     spec:
       containers:
-        - image: ghcr.io/hsiaofongw/get-notion-rss-feeds:0.0.4
+        - image: ghcr.io/hsiaofongw/get-notion-rss-feeds:0.0.5
           name: get-notion-rss-feeds
           env:
             - name: EXPEDIENT_HOMEPAGE_URL
