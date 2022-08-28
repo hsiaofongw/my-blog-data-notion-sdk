@@ -1,3 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: get-notion-rss-feeds-configmap
+data:
+  redis_hostname: "my-redis"
+  redis_port: "6379"
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -12,9 +20,21 @@ spec:
         app: get-notion-rss-feeds
     spec:
       containers:
-        - image: ghcr.io/hsiaofongw/get-notion-rss-feeds:0.0.2
+        - image: ghcr.io/hsiaofongw/get-notion-rss-feeds:0.0.3
           name: get-notion-rss-feeds
           env:
+            - name: REDIS_HOSTNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap
+                  key: redis_hostname
+                  optional: false
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap
+                  key: redis_port
+                  optional: false
             - name: NOTION_TOKEN
               valueFrom:
                 secretKeyRef:
