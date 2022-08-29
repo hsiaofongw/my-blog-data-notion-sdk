@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: get-notion-rss-feeds-configmap
+data:
+  redis_hostname: "my-redis"
+  redis_port: "6379"
+  homepage_url: "https://hsiaofongw.notion.site/"
+  friend_link_list_db_id: "f07310102f454a6ca489715f2acecbad"
+  article_list_db_id: "5a2607098c2f46a6941799693562308b"
