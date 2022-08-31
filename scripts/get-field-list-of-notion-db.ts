@@ -2,29 +2,14 @@ import { Client } from "@notionhq/client";
 import dotenv from "dotenv";
 import axios from "axios";
 import { parse } from "date-fns";
+import { FieldDescriptor, FieldMappingRequest } from "../src/notion-sdk/types";
+import { getNotionDatabaseFieldList } from "../src/notion-sdk/get-notion-db-field-list";
+import { writePropertyTemplates } from '../src/notion-sdk/write-property-templates';
 
 dotenv.config();
 const notion = new Client({
   auth: process.env.NOTION_TOKEN,
 });
-
-/** 字段描述 */
-type FieldDescriptor = { fieldName: string; fieldType: string };
-
-/** 字段映射请求 */
-type FieldMappingRequest = {
-  /** 源表字段列表 */
-  sourceTableKeys: Array<FieldDescriptor>;
-
-  /** 目标表字段列表 */
-  destinationTableKeys: Array<FieldDescriptor>;
-
-  /** 源表主键字段下标，例如 i 对应 sourceTableKeys[i] */
-  sourceTablePrimaryKeyIdx: number;
-
-  /** 目标表主键字段下标，例如 j 对应 destinationTableKeys[j] */
-  destinationTablePrimaryKeyIdx: number;
-};
 
 const slowDown = (ms: number): Promise<null> => {
   return new Promise((resolve) => {
@@ -33,16 +18,12 @@ const slowDown = (ms: number): Promise<null> => {
   });
 };
 
-const propertyTemplates = {
-  title: (content: string) => ({ title: [{ type: 'text', text: { content: content }}] }),
-  date: (content: Date) => ({ date: { start: content.toISOString() } }),
-  url: (content: string) => ({ url: content }),
-  rich_text: (content: string) => ({ rich_text: [{ type: 'text', text: { content }}] }),
-  multi_select: (content: Array<string>) => ({ multi_select: content.map(option => ({ name: option })) }),
-}
-
-function writeTitleToObject(currentObject: any, fieldName: string, content: string) {
-  currentObject[fieldName] = propertyTemplates.title(content);
+function writeTitleToObject(
+  currentObject: any,
+  fieldName: string,
+  content: string
+) {
+  currentObject[fieldName] = writePropertyTemplates.title(content);
 }
 
 async function writeTitle(pageId: string, fieldName: string, title: string) {
@@ -51,18 +32,26 @@ async function writeTitle(pageId: string, fieldName: string, title: string) {
   return notion.pages.update({ page_id: pageId, properties });
 }
 
-function writeDateToObject(currentObject: any, fieldName: string, content: Date) {
-  currentObject[fieldName] = propertyTemplates.date(content);
+function writeDateToObject(
+  currentObject: any,
+  fieldName: string,
+  content: Date
+) {
+  currentObject[fieldName] = writePropertyTemplates.date(content);
 }
 
 async function writeDate(pageId: string, fieldName: string, date: Date) {
   let properties: any = {};
   writeDateToObject(properties, fieldName, date);
-  return notion.pages.update({ page_id: pageId, properties, });
+  return notion.pages.update({ page_id: pageId, properties });
 }
 
-function writeUrlToObject(currentObject: any, fieldName: string, content: string) {
-  currentObject[fieldName] = propertyTemplates.url(content);
+function writeUrlToObject(
+  currentObject: any,
+  fieldName: string,
+  content: string
+) {
+  currentObject[fieldName] = writePropertyTemplates.url(content);
 }
 
 async function writeUrl(pageId: string, fieldName: string, url: string) {
@@ -74,8 +63,12 @@ async function writeUrl(pageId: string, fieldName: string, url: string) {
   });
 }
 
-function writeRichTextTypeTextToObject(currentObject: any, fieldName: string, content: string) {
-  currentObject[fieldName] = propertyTemplates.rich_text(content);
+function writeRichTextTypeTextToObject(
+  currentObject: any,
+  fieldName: string,
+  content: string
+) {
+  currentObject[fieldName] = writePropertyTemplates.rich_text(content);
 }
 
 async function writeRichTextTypeText(
@@ -91,8 +84,12 @@ async function writeRichTextTypeText(
   });
 }
 
-function writeMultiSelectToObject(currentObject: any, fieldName: string, content: Array<string>) {
-  currentObject[fieldName] = propertyTemplates.multi_select(content);
+function writeMultiSelectToObject(
+  currentObject: any,
+  fieldName: string,
+  content: Array<string>
+) {
+  currentObject[fieldName] = writePropertyTemplates.multi_select(content);
 }
 
 async function writeMultiSelect(
@@ -115,29 +112,18 @@ async function main() {
   console.log("Database Id:", dbId);
 
   // Query db field list from Notion api server
-  const dbFieldListResponse = await await notion.databases.retrieve({
-    database_id: dbId,
-  });
-  console.log("Database UUID from query result: %s", dbFieldListResponse.id);
-  console.log(
-    "Database title: %s",
-    (dbFieldListResponse as any)?.title[0]?.plain_text
-  );
-  console.log("Database URL: %s", (dbFieldListResponse as any)?.url);
+  const dbInfo = await getNotionDatabaseFieldList(notion, dbId);
 
-  //   console.log('Field list query result:', dbFieldListResponse);
-  let fieldDescriptors: Array<FieldDescriptor> = [];
-  for (const propKey in dbFieldListResponse.properties) {
-    const prop = dbFieldListResponse.properties[propKey];
-    const fieldName = prop.name;
-    const fieldType = prop.type;
-    fieldDescriptors.push({ fieldName, fieldType });
-  }
+  console.log("Database UUID from query result: %s", dbInfo.uuid);
+  console.log("Database title: %s", dbInfo.title);
+  console.log("Database URL: %s", dbInfo.url);
 
-  fieldDescriptors.sort((a, b) => a.fieldName.localeCompare(b.fieldName));
-  fieldDescriptors.forEach((field, fieldIdx) => {
+  const fields = dbInfo.fields;
+  fields.forEach((field, fieldIdx) => {
     console.log("[%d]: %o", fieldIdx, field);
   });
+
+  console.log(JSON.stringify(fields));
 
   return;
 
