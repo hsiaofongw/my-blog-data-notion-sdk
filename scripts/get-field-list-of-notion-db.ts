@@ -2,9 +2,9 @@ import { Client } from "@notionhq/client";
 import dotenv from "dotenv";
 import axios from "axios";
 import { parse } from "date-fns";
-import { FieldDescriptor, FieldMappingRequest } from "../src/notion-sdk/types";
-import { getNotionDatabaseFieldList } from "../src/notion-sdk/get-notion-db-field-list";
-import { writePropertyTemplates } from '../src/notion-sdk/write-property-templates';
+import { FieldDescriptor, FieldMappingRequest } from "../src/notion-relateds/types";
+import { getNotionDatabaseFieldList } from "../src/notion-relateds/get-notion-db-field-list";
+import { writePropertyTemplates } from '../src/notion-relateds/write-property-templates';
 
 dotenv.config();
 const notion = new Client({

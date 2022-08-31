@@ -25,22 +25,22 @@ export class FeedService {
     getPostDate: (_: T) => Date,
   ) {
 
-    const fakeName = '探索子';  // fake means not real
+    const fakeName = process.env['FEED_FAKENAME'];  // fake means not real
     const title = `${fakeName}博客`;
     const name = title;
-    const description = '';
-    const homepage = 'https://exploro.one';
+    const description = process.env['FEED_DESCRIPTION'];
+    const homepage = process.env['FEED_HOME_PAGE'];
     const id = homepage;
     const link = homepage;
-    const favicon = "https://www.gravatar.com/avatar/dfa26ed25a72c40d602d33d854dd6f07?s=200";
-    const copyright = '';
+    const favicon = process.env['FEED_FAVICON'];
+    const copyright = process.env['FEED_COPYRIGHT'];
     const updated = new Date();
-    const generator = '';
-    const email = 'i@beyondstars.xyz';
+    const generator = process.env['FEED_GENERATOR'];
+    const email = process.env['FEED_EMAIL'];
 
     const feedLinks = {
-      json: homepage + '/feed/json',
-      atom: homepage + '/feed/atom',
+      json: process.env['FEED_LINK_JSON'],
+      atom: process.env['FEED_LINK_ATOM'],
     };
 
     const author = { name, email, link };
@@ -63,7 +63,7 @@ export class FeedService {
       });
     });
 
-    feed.addCategory("Notes");
+    feed.addCategory(process.env['FEED_CATEGORY']);
 
     return feed;
   }
