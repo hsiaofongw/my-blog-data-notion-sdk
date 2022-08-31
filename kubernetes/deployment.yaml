@@ -15,6 +15,12 @@ spec:
         - image: ghcr.io/hsiaofongw/get-notion-rss-feeds:0.0.7
           name: get-notion-rss-feeds
           env:
+            - name: DATA_GITHUB_FRIEND_LINK_LIST_JSON
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap
+                  key: data_github_friend_link_list_json
+                  optional: false
             - name: FEED_FAKENAME
               valueFrom:
                 configMapKeyRef:
