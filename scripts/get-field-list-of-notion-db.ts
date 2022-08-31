@@ -123,8 +123,6 @@ async function main() {
     console.log("[%d]: %o", fieldIdx, field);
   });
 
-  console.log(JSON.stringify(fields));
-
   return;
 
   const githubFriendJSONUrl = process.env.GITHUB_FRIEND_LINKS as string;
