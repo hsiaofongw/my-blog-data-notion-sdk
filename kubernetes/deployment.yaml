@@ -15,6 +15,66 @@ spec:
         - image: ghcr.io/hsiaofongw/get-notion-rss-feeds:0.0.7
           name: get-notion-rss-feeds
           env:
+            - name: FEED_FAKENAME
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap 
+                  key: feed_fakename
+                  optional: false
+            - name: FEED_DESCRIPTION
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap 
+                  key: feed_description
+                  optional: false
+            - name: FEED_HOME_PAGE
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap 
+                  key: feed_home_page
+                  optional: false
+            - name: FEED_FAVICON
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap 
+                  key: feed_favicon
+                  optional: false
+            - name: FEED_EMAIL
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap 
+                  key: feed_email
+                  optional: false
+            - name: FEED_COPYRIGHT
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap 
+                  key: feed_copyright
+                  optional: false
+            - name: FEED_LINK_JSON
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap 
+                  key: feed_link_json
+                  optional: false
+            - name: FEED_LINK_ATOM
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap 
+                  key: feed_link_atom
+                  optional: false
+            - name: FEED_CATEGORY
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap 
+                  key: feed_category
+                  optional: false
+            - name: FEED_GENERATOR
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap 
+                  key: feed_generator
+                  optional: false
             - name: NOTION_FRIEND_LINK_LIST_DB_ID
               valueFrom:
                 configMapKeyRef:
