@@ -4,8 +4,8 @@ import axios from "axios";
 import { parse } from "date-fns";
 import { getNotionDatabaseFieldList } from "../src/notion-relateds/get-notion-db-field-list";
 import { readPropertyMethods, writePropertyTemplates } from "../src/notion-relateds/write-property-templates";
-import { FieldMappingRequest } from "../src/notion-relateds/types";
-import { githubFriendLinkListFields, notionFriendLinkListFields, fieldAssociations } from '../src/notion-relateds/fields-config';
+import { FieldComparator, FieldMappingRequest } from "../src/notion-relateds/types";
+import { githubFriendLinkListFields, notionFriendLinkListFields, fieldAssociations, fieldComparators } from '../src/notion-relateds/fields-config';
 
 dotenv.config();
 const notion = new Client({
@@ -186,9 +186,23 @@ async function syncJsonDataToNotionDb(
   console.log('Notion database URL:', dbMetadata.url);
   console.log('Notion database UUID:', dbMetadata.uuid);
   console.log('Notion database fields:');
+
+  let notionFieldNameToType: Record<string, string> = {};
   for (const field of dbMetadata.fields) {
-    console.log(field);
+    notionFieldNameToType[field.fieldName] = field.fieldType;
   }
+  console.log('Notion field name to field type mapping:', notionFieldNameToType);
+
+  let fieldComparatorMap: Record<string, Record<string, FieldComparator>> = {};
+  for (const comparator of fieldComparators) {
+    const l1Key = comparator.lhsFieldType;
+    if (!(fieldComparatorMap[l1Key])) {
+      fieldComparatorMap[l1Key] = {};
+    }
+    const l2Key = comparator.rhsFieldType;
+    fieldComparatorMap[l1Key][l2Key] = comparator;
+  }
+  console.log('Comparators:', fieldComparatorMap);
   
   let sourceDataIndex: Record<string, any> = {};
   for (const datum of sourceData) {
@@ -211,7 +225,31 @@ async function syncJsonDataToNotionDb(
     }
 
     console.log('Lhs', lhs);
-    console.log('Rhs', datum);
+    const rhs = datum;
+    console.log('Rhs', rhs);
+
+    console.log('Comparing...');
+    for (const association of fieldMappingRequest.associations) {
+      const lhsKeyIdx = association.sourceTableKeyIdx;
+      const lhsField = fieldMappingRequest.sourceTableKeys[lhsKeyIdx];
+      const lhsValue = (lhs as any)[lhsField.fieldName];
+      const rhsKeyIdx = association.destinationTableKeyIdx;
+      const rhsField = fieldMappingRequest.destinationTableKeys[rhsKeyIdx];
+      const rhsValue = (rhs as any)[rhsField.fieldName];
+
+      let equal: FieldComparator['isEqual'] = (a: any, b: any) => a === b;
+      if (fieldComparatorMap[lhsField.fieldType]) {
+        const fieldComparator = fieldComparatorMap[lhsField.fieldType][rhsField.fieldType];
+        if (fieldComparator) {
+          equal = fieldComparator.isEqual;
+        }
+      }
+
+      const isEqual = equal(lhsValue, rhsValue);
+
+      console.log(`Compare: (${lhsField.fieldName}, ${lhsValue}) -- (${rhsField.fieldName}, ${rhsValue}) ==> ${isEqual}`);
+    }
+
     return Promise.resolve();
   }
 
