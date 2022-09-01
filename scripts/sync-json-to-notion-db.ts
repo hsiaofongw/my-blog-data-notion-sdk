@@ -3,7 +3,9 @@ import dotenv from "dotenv";
 import axios from "axios";
 import { parse } from "date-fns";
 import { getNotionDatabaseFieldList } from "../src/notion-relateds/get-notion-db-field-list";
-import { writePropertyTemplates } from "../src/notion-relateds/write-property-templates";
+import { readPropertyMethods, writePropertyTemplates } from "../src/notion-relateds/write-property-templates";
+import { FieldMappingRequest } from "../src/notion-relateds/types";
+import { githubFriendLinkListFields, notionFriendLinkListFields, fieldAssociations } from '../src/notion-relateds/fields-config';
 
 dotenv.config();
 const notion = new Client({
@@ -12,7 +14,7 @@ const notion = new Client({
 
 const slowDown = (ms: number): Promise<null> => {
   return new Promise((resolve) => {
-    console.log(`Sleeping for ${ms} miliseconds...`);
+    // console.log(`Sleeping for ${ms} miliseconds...`);
     setTimeout(() => resolve(null), ms);
   });
 };
@@ -107,7 +109,8 @@ async function writeMultiSelect(
 async function traverseDbPageWise(
   notionDbId: string,
   pageSize: number,
-  nextCursor?: string
+  traverser: (pageId: string, datum: any) => Promise<any>,
+  nextCursor?: string,
 ) {
   let params = { database_id: notionDbId, page_size: pageSize };
   if (nextCursor) {
@@ -117,25 +120,29 @@ async function traverseDbPageWise(
   const pagedResponse = await notion.databases.query(params);
 
   for (const item of pagedResponse.results) {
-    const objType = item.object;
     const id = item.id;
     const properties = (item as any).properties;
-    const url = (item as any).url;
 
-    const itemBrief = { objType, id, url };
-    console.log('Item', itemBrief);
-
+    let propertyValues: Record<string, any> = {};
     for (const propertyKey in properties) {
       const property = properties[propertyKey];
+      const propertyType = property.type;
 
       const propertyValueResp = await notion.pages.properties.retrieve({
         page_id: id,
         property_id: property.id,
       });
 
-      console.log(propertyKey, propertyValueResp);
-      await slowDown(1000);
+      const propertyValueReader = (readPropertyMethods as any)[propertyType];
+      if (propertyValueReader) {
+        const propertyValue = propertyValueReader(propertyValueResp);
+        propertyValues[propertyKey] = propertyValue;
+      }
+
+      await slowDown(400);
     }
+
+    await traverser(item.id,  propertyValues);
   }
 
   if (pagedResponse.has_more && pagedResponse.next_cursor) {
@@ -145,16 +152,70 @@ async function traverseDbPageWise(
         traverseDbPageWise(
           notionDbId,
           pageSize,
+          traverser,
           pagedResponse.next_cursor as string
         ).then(() => resolve(null)).catch((err) => reject(err));
-      }, 1000);
+      }, 400);
     });
   }
 
 }
 
-function syncJsonDataToNotionDb(notionDbId: string) {
-  traverseDbPageWise(notionDbId, 10);
+async function syncJsonDataToNotionDb(
+  notionDbId: string, 
+  sourceJsonUrl: string, 
+  fieldMappingRequest: FieldMappingRequest,
+) {
+  const sourceFields = fieldMappingRequest.sourceTableKeys;
+  const sourcePrimaryKey = sourceFields[fieldMappingRequest.sourceTablePrimaryKeyIndex].fieldName;
+  const targetFields = fieldMappingRequest.destinationTableKeys;
+  const targetPrimaryKey = targetFields[fieldMappingRequest.destinationTablePrimaryKeyIndex].fieldName;
+  console.log('Notion Database Id:', notionDbId);
+  console.log('Destination table primary key:', targetPrimaryKey);
+
+  console.log('Getting source data...');
+  const sourceResp = await axios.get(sourceJsonUrl);
+  const sourceData = sourceResp.data;
+  console.log('Source table URL:', sourceJsonUrl);
+  console.log('Source date length:', sourceData.length);
+  console.log('Source table primary key:', sourcePrimaryKey);
+
+  console.log('Getting Notion database metadata...');
+  const dbMetadata = await getNotionDatabaseFieldList(notion, notionDbId);
+  console.log('Notion database title:', dbMetadata.title);
+  console.log('Notion database URL:', dbMetadata.url);
+  console.log('Notion database UUID:', dbMetadata.uuid);
+  console.log('Notion database fields:');
+  for (const field of dbMetadata.fields) {
+    console.log(field);
+  }
+  
+  let sourceDataIndex: Record<string, any> = {};
+  for (const datum of sourceData) {
+    const key = datum[sourcePrimaryKey];
+    sourceDataIndex[key] = datum;
+  }
+
+  let deleteList = new Set<string>();
+
+  const traverser = (notionObjectId: string, datum: any) => {
+    const key = datum[targetPrimaryKey];
+    if (!key) {
+      deleteList.add(notionObjectId);
+    }
+    
+    const lhs = sourceDataIndex[key];
+
+    if (!lhs) {
+      deleteList.add(notionObjectId);
+    }
+
+    console.log('Lhs', lhs);
+    console.log('Rhs', datum);
+    return Promise.resolve();
+  }
+
+  traverseDbPageWise(notionDbId, 10, traverser);
 }
 
 function main() {
@@ -163,7 +224,33 @@ function main() {
   const dbId = process.argv[2];
   console.log("Database Id:", dbId);
 
-  syncJsonDataToNotionDb(dbId);
+  const jsonUrl = process.env['DATA_GITHUB_FRIEND_LINK_LIST_JSON'] as string;
+
+  let sourceTablePrimaryKeyIndex = 0;
+  let destinationTablePrimaryKeyIndex = 0;
+  for (let i = 0; i < githubFriendLinkListFields.length; i++) {
+    if (githubFriendLinkListFields[i].fieldName === 'link') {
+      sourceTablePrimaryKeyIndex = i;
+      break;
+    }
+  }
+
+  for (let i = 0; i < notionFriendLinkListFields.length; i++) {
+    if (notionFriendLinkListFields[i].fieldName === 'Link') {
+      destinationTablePrimaryKeyIndex = i;
+      break;
+    }
+  }
+
+  const fieldMappingRequest: FieldMappingRequest = {
+    sourceTableKeys: githubFriendLinkListFields,
+    destinationTableKeys: notionFriendLinkListFields,
+    sourceTablePrimaryKeyIndex: sourceTablePrimaryKeyIndex,
+    destinationTablePrimaryKeyIndex: destinationTablePrimaryKeyIndex,
+    associations: fieldAssociations,
+  };
+
+  syncJsonDataToNotionDb(dbId, jsonUrl, fieldMappingRequest);
   return;
 }
 

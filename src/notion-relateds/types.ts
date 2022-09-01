@@ -12,13 +12,19 @@ export type FieldMappingRequest = {
   /** 目标表字段列表 */
   destinationTableKeys: Array<FieldDescriptor>;
 
+  /** 源表主键下标 */
+  sourceTablePrimaryKeyIndex: number;
+
+  /** 目标表主键下标 */
+  destinationTablePrimaryKeyIndex: number;
+
   /** 字段对应关系 */
   associations: Array<{
-    /** 源表主键字段下标，例如 i 对应 sourceTableKeys[i] */
-    sourceTablePrimaryKeyIdx: number;
+    /** 源表字段下标，例如 i 对应 sourceTableKeys[i] */
+    sourceTableKeyIdx: number;
 
-    /** 目标表主键字段下标，例如 j 对应 destinationTableKeys[j] */
-    destinationTablePrimaryKeyIdx: number;
+    /** 目标表字段下标，例如 j 对应 destinationTableKeys[j] */
+    destinationTableKeyIdx: number;
   }>;
 };
 

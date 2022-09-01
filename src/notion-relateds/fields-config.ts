@@ -30,11 +30,11 @@ export const githubFriendLinkListFields: Array<FieldDescriptor> = [
 
 /** 字段对应关系 */
 export const fieldAssociations: FieldMappingRequest['associations'] = [
-  { sourceTablePrimaryKeyIdx: 0, destinationTablePrimaryKeyIdx: 0 },
-  { sourceTablePrimaryKeyIdx: 1, destinationTablePrimaryKeyIdx: 1 },
-  { sourceTablePrimaryKeyIdx: 2, destinationTablePrimaryKeyIdx: 2 },
-  { sourceTablePrimaryKeyIdx: 3, destinationTablePrimaryKeyIdx: 3 },
-  { sourceTablePrimaryKeyIdx: 4, destinationTablePrimaryKeyIdx: 4 },
+  { sourceTableKeyIdx: 0, destinationTableKeyIdx: 0 },
+  { sourceTableKeyIdx: 1, destinationTableKeyIdx: 1 },
+  { sourceTableKeyIdx: 2, destinationTableKeyIdx: 2 },
+  { sourceTableKeyIdx: 3, destinationTableKeyIdx: 3 },
+  { sourceTableKeyIdx: 4, destinationTableKeyIdx: 4 },
 ];
 
 /** JSON 文件中的日期的格式 */
