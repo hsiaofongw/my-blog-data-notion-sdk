@@ -140,27 +140,38 @@ async function syncJsonDataToNotionDb(
     (datum) => datum
   );
 
+  // deleteList 的每个元素是 notion block id（page 也是 block）
   let deleteList = new Set<string>();
+
+  // addList 的每个元素是 lhs table 的 key 值
+  let addList = new Set<string>();
+
   await traverseDbElementWise(
     notionDbId,
     20,
     async (pageId, pageObject, datum, hasMore) => {
-      console.log(pageId + ':', pageObject);
+      console.log(pageId + ":", pageObject);
       const key = datum[targetPrimaryKey];
-      console.log(key + ':', datum);
+      console.log(key + ":", datum);
 
       if (key && sourceDataIndex[key]) {
         const lhs = sourceDataIndex[key];
         const rhs = datum;
         const associations = fieldMappingRequest.associations;
         for (const association of associations) {
-          const lhsField = fieldMappingRequest.sourceTableKeys[association.sourceTableKeyIdx];
-          const rhsField = fieldMappingRequest.destinationTableKeys[association.destinationTableKeyIdx];
+          const lhsField =
+            fieldMappingRequest.sourceTableKeys[association.sourceTableKeyIdx];
+          const rhsField =
+            fieldMappingRequest.destinationTableKeys[
+              association.destinationTableKeyIdx
+            ];
 
-          let equalQ: FieldComparator['isEqual'] = (a: any, b: any) => a === b;
+          let equalQ: FieldComparator["isEqual"] = (a: any, b: any) => a === b;
           if (fieldComparatorMap[lhsField.fieldType]) {
             if (fieldComparatorMap[lhsField.fieldType][rhsField.fieldType]) {
-              equalQ = fieldComparatorMap[lhsField.fieldType][rhsField.fieldType].isEqual;
+              equalQ =
+                fieldComparatorMap[lhsField.fieldType][rhsField.fieldType]
+                  .isEqual;
             }
           }
 
@@ -168,8 +179,37 @@ async function syncJsonDataToNotionDb(
           const r = rhs[rhsField.fieldName];
           console.log(`lhs: (${lhsField.fieldName}, ${l})`);
           console.log(`rhs: (${rhsField.fieldName}, ${r})`);
-          console.log(`isEqual: ${equalQ(l, r)}`)
+          console.log(`isEqual: ${equalQ(l, r)}`);
+          if (!equalQ(l, r)) {
+            let desiredRhsValue = l;
+            console.log("Desired rhs value:", desiredRhsValue);
+
+            if (reconcilerMap[lhsField.fieldType]) {
+              const reconcilerOperator =
+                reconcilerMap[lhsField.fieldType][rhsField.fieldType]
+                  .fromLhsToRhs;
+              if (reconcilerOperator) {
+                desiredRhsValue = reconcilerOperator(l);
+              }
+            }
+
+            let writeTemplate = (writePropertyTemplates as any)[
+              rhsField.fieldType
+            ];
+            if (writeTemplate) {
+              console.log("Updating...");
+              const updatePropertyResponse = await notion.pages.update({
+                page_id: pageId,
+                properties: {
+                  [rhsField.fieldName]: writeTemplate(desiredRhsValue),
+                },
+              });
+              console.log("Updated:", updatePropertyResponse.id);
+              await slowDown(400);
+            }
+          }
         }
+        delete sourceDataIndex[key];
       } else {
         deleteList.add(pageId);
       }
@@ -180,82 +220,43 @@ async function syncJsonDataToNotionDb(
     }
   );
 
-  const traverser = async (notionObjectId: string, datum: any) => {
-    console.log(notionObjectId + ":", datum);
+  for (const key in sourceDataIndex) {
+    addList.add(key);
+  }
 
-    const key = datum[targetPrimaryKey];
-    console.log("Value of primary key in the target table:", key);
+  for (const pageId of deleteList) {
+    console.log("Deleting:", pageId);
+    const resp = await notion.blocks.delete({ block_id: pageId });
+    console.log("Deleted:", resp.id);
+  }
 
-    if (!key) {
-      // 目标表主键缺失
-      console.log("Primary key missing in target table.");
-      deleteList.add(notionObjectId);
-    }
-
-    const lhs = sourceDataIndex[key];
-
-    if (!lhs) {
-      // 该条记录在原表中已被删除
-      console.log("Deleted in the source table.");
-      deleteList.add(notionObjectId);
-    }
-
-    console.log("Lhs", lhs);
-    const rhs = datum;
-    console.log("Rhs", rhs);
-
-    console.log("Comparing...");
+  for (const key of addList) {
+    const datum = sourceDataIndex[key];
+    console.log('Creating:', datum);
+    let properties: any = {};
     for (const association of fieldMappingRequest.associations) {
-      const lhsKeyIdx = association.sourceTableKeyIdx;
-      const lhsField = fieldMappingRequest.sourceTableKeys[lhsKeyIdx];
-      const lhsValue = (lhs as any)[lhsField.fieldName];
-      const rhsKeyIdx = association.destinationTableKeyIdx;
-      const rhsField = fieldMappingRequest.destinationTableKeys[rhsKeyIdx];
-      const rhsValue = (rhs as any)[rhsField.fieldName];
-
-      let equal: FieldComparator["isEqual"] = (a: any, b: any) => a === b;
-      if (fieldComparatorMap[lhsField.fieldType]) {
-        const fieldComparator =
-          fieldComparatorMap[lhsField.fieldType][rhsField.fieldType];
-        if (fieldComparator) {
-          equal = fieldComparator.isEqual;
+      const lhsField = fieldMappingRequest.sourceTableKeys[association.sourceTableKeyIdx];
+      const rhsField = fieldMappingRequest.destinationTableKeys[association.destinationTableKeyIdx];
+      let reconciler: FieldReconciler['fromLhsToRhs'] = (x: any) => x;
+      if (reconcilerMap[lhsField.fieldType]) {
+        if (reconcilerMap[lhsField.fieldType][rhsField.fieldType]) {
+          reconciler = reconcilerMap[lhsField.fieldType][rhsField.fieldType].fromLhsToRhs;
         }
       }
-
-      const isEqual = equal(lhsValue, rhsValue);
-
-      console.log(
-        `Compare: (${lhsField.fieldName}, ${lhsValue}) -- (${rhsField.fieldName}, ${rhsValue}) ==> ${isEqual}`
-      );
-      if (!isEqual) {
-        let desiredRhsValue = lhsValue;
-        console.log("Desired rhs value:", desiredRhsValue);
-
-        if (reconcilerMap[lhsField.fieldType]) {
-          const reconcilerOperator =
-            reconcilerMap[lhsField.fieldType][rhsField.fieldType].fromLhsToRhs;
-          if (reconcilerOperator) {
-            desiredRhsValue = reconcilerOperator(lhsValue);
-          }
-        }
-
-        let writeTemplate = (writePropertyTemplates as any)[rhsField.fieldType];
-        if (writeTemplate) {
-          console.log("Updating...");
-          const updatePropertyResponse = await notion.pages.update({
-            page_id: notionObjectId,
-            properties: {
-              [rhsField.fieldName]: writeTemplate(desiredRhsValue),
-            },
-          });
-          console.log("Updated:", updatePropertyResponse.id);
-          await slowDown(400);
-        }
+      const rhsValue = reconciler(datum[lhsField.fieldName]);
+      const writeTemplate = (writePropertyTemplates as any)[rhsField.fieldType];
+      if (writeTemplate) {
+        properties[rhsField.fieldName] = writeTemplate(rhsValue);
       }
     }
-  };
 
-  // traverseDbElementWise(notionDbId, 10, traverser);
+    const resp = await notion.pages.create({
+      parent: { type: "database_id", database_id: notionDbId },
+      properties,
+    });
+    console.log('Created:', resp.id);
+    await slowDown(400);
+  }
 }
 
 function main() {
