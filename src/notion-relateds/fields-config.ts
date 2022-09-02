@@ -61,7 +61,7 @@ export const fieldComparators: Array<FieldComparator> = [
 ];
 
 /** 同步方式，从 JSON 值到 Notion DB 值 */
-export const fieldReconciler: Array<FieldReconciler> = [
+export const fieldReconcilers: Array<FieldReconciler> = [
   {
     lhsFieldType: "string",
     rhsFieldType: "date",

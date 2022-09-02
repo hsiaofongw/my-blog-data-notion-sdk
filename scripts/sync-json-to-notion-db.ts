@@ -4,8 +4,10 @@ import axios from "axios";
 import { parse } from "date-fns";
 import { getNotionDatabaseFieldList } from "../src/notion-relateds/get-notion-db-field-list";
 import { readPropertyMethods, writePropertyTemplates } from "../src/notion-relateds/write-property-templates";
-import { FieldComparator, FieldMappingRequest } from "../src/notion-relateds/types";
-import { githubFriendLinkListFields, notionFriendLinkListFields, fieldAssociations, fieldComparators } from '../src/notion-relateds/fields-config';
+import { FieldComparator, FieldMappingRequest, FieldReconciler } from "../src/notion-relateds/types";
+import { githubFriendLinkListFields, notionFriendLinkListFields, fieldAssociations, fieldComparators, fieldReconcilers } from '../src/notion-relateds/fields-config';
+import { makeLevel2Map } from '../src/utils/make-level2-map';
+import { makeL1Map } from '../src/utils/make-level1-map';
 
 dotenv.config();
 const notion = new Client({
@@ -187,40 +189,37 @@ async function syncJsonDataToNotionDb(
   console.log('Notion database UUID:', dbMetadata.uuid);
   console.log('Notion database fields:');
 
-  let notionFieldNameToType: Record<string, string> = {};
-  for (const field of dbMetadata.fields) {
-    notionFieldNameToType[field.fieldName] = field.fieldType;
-  }
+  const notionFieldNameToType: Record<string, string> = makeL1Map(dbMetadata.fields, (datum) => datum.fieldName, (datum) => datum.fieldType);
   console.log('Notion field name to field type mapping:', notionFieldNameToType);
 
-  let fieldComparatorMap: Record<string, Record<string, FieldComparator>> = {};
-  for (const comparator of fieldComparators) {
-    const l1Key = comparator.lhsFieldType;
-    if (!(fieldComparatorMap[l1Key])) {
-      fieldComparatorMap[l1Key] = {};
-    }
-    const l2Key = comparator.rhsFieldType;
-    fieldComparatorMap[l1Key][l2Key] = comparator;
-  }
+  const fieldComparatorMap: Record<string, Record<string, FieldComparator>> = makeLevel2Map(fieldComparators, (datum) => datum.lhsFieldType, (datum) => datum.rhsFieldType);
   console.log('Comparators:', fieldComparatorMap);
+
+  const reconcilerMap: Record<string, Record<string, FieldReconciler>> = makeLevel2Map(fieldReconcilers, (datum) => datum.lhsFieldType, (datum) => datum.rhsFieldType);
+  console.log('Reconcilers:', reconcilerMap);
   
-  let sourceDataIndex: Record<string, any> = {};
-  for (const datum of sourceData) {
-    const key = datum[sourcePrimaryKey];
-    sourceDataIndex[key] = datum;
-  }
+  // 为原表建立索引 HashMap[主键 -> 元素]
+  const sourceDataIndex: Record<string, any> = makeL1Map(sourceData, (datum: any) => datum[sourcePrimaryKey], (datum) => datum);
 
   let deleteList = new Set<string>();
 
-  const traverser = (notionObjectId: string, datum: any) => {
+  const traverser = async (notionObjectId: string, datum: any) => {
+    console.log(notionObjectId+':', datum);
+
     const key = datum[targetPrimaryKey];
+    console.log('Value of primary key in the target table:', key);
+
     if (!key) {
+      // 目标表主键缺失
+      console.log('Primary key missing in target table.');
       deleteList.add(notionObjectId);
     }
     
     const lhs = sourceDataIndex[key];
 
     if (!lhs) {
+      // 该条记录在原表中已被删除
+      console.log('Deleted in the source table.');
       deleteList.add(notionObjectId);
     }
 
@@ -248,9 +247,26 @@ async function syncJsonDataToNotionDb(
       const isEqual = equal(lhsValue, rhsValue);
 
       console.log(`Compare: (${lhsField.fieldName}, ${lhsValue}) -- (${rhsField.fieldName}, ${rhsValue}) ==> ${isEqual}`);
-    }
+      if (!isEqual) {
+        let desiredRhsValue = lhsValue;
+        console.log('Desired rhs value:', desiredRhsValue);
 
-    return Promise.resolve();
+        if (reconcilerMap[lhsField.fieldType]) {
+          const reconcilerOperator = reconcilerMap[lhsField.fieldType][rhsField.fieldType].fromLhsToRhs;
+          if (reconcilerOperator) {
+            desiredRhsValue = reconcilerOperator(lhsValue);
+          }
+        }
+
+        let writeTemplate = (writePropertyTemplates as any)[rhsField.fieldType];
+        if (writeTemplate) {
+          console.log('Updating...');
+          const updatePropertyResponse = await notion.pages.update({ page_id: notionObjectId, properties: { [rhsField.fieldName]: writeTemplate(desiredRhsValue) } });
+          console.log('Updated:', updatePropertyResponse.id);
+          await slowDown(400);
+        }
+      }
+    }
   }
 
   traverseDbPageWise(notionDbId, 10, traverser);
