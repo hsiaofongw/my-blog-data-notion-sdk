@@ -1,13 +1,27 @@
 import { Client } from "@notionhq/client";
 import dotenv from "dotenv";
 import axios from "axios";
-import { parse } from "date-fns";
+import { isEqual, parse } from "date-fns";
 import { getNotionDatabaseFieldList } from "../src/notion-relateds/get-notion-db-field-list";
-import { readPropertyMethods, writePropertyTemplates } from "../src/notion-relateds/write-property-templates";
-import { FieldComparator, FieldMappingRequest, FieldReconciler } from "../src/notion-relateds/types";
-import { githubFriendLinkListFields, notionFriendLinkListFields, fieldAssociations, fieldComparators, fieldReconcilers } from '../src/notion-relateds/fields-config';
-import { makeLevel2Map } from '../src/utils/make-level2-map';
-import { makeL1Map } from '../src/utils/make-level1-map';
+import {
+  readPropertyMethods,
+  writePropertyTemplates,
+} from "../src/notion-relateds/write-property-templates";
+import {
+  FieldComparator,
+  FieldMappingRequest,
+  FieldReconciler,
+} from "../src/notion-relateds/types";
+import {
+  githubFriendLinkListFields,
+  notionFriendLinkListFields,
+  fieldAssociations,
+  fieldComparators,
+  fieldReconcilers,
+} from "../src/notion-relateds/fields-config";
+import { makeLevel2Map } from "../src/utils/make-level2-map";
+import { makeL1Map } from "../src/utils/make-level1-map";
+import { traverseNotionDbPages } from "../src/notion-relateds/utils/traverse-db-pages";
 
 dotenv.config();
 const notion = new Client({
@@ -21,213 +35,176 @@ const slowDown = (ms: number): Promise<null> => {
   });
 };
 
-function writeTitleToObject(
-  currentObject: any,
-  fieldName: string,
-  content: string
-) {
-  currentObject[fieldName] = writePropertyTemplates.title(content);
-}
-
-async function writeTitle(pageId: string, fieldName: string, title: string) {
-  let properties: any = {};
-  writeTitleToObject(properties, fieldName, title);
-  return notion.pages.update({ page_id: pageId, properties });
-}
-
-function writeDateToObject(
-  currentObject: any,
-  fieldName: string,
-  content: Date
-) {
-  currentObject[fieldName] = writePropertyTemplates.date(content);
-}
-
-async function writeDate(pageId: string, fieldName: string, date: Date) {
-  let properties: any = {};
-  writeDateToObject(properties, fieldName, date);
-  return notion.pages.update({ page_id: pageId, properties });
-}
-
-function writeUrlToObject(
-  currentObject: any,
-  fieldName: string,
-  content: string
-) {
-  currentObject[fieldName] = writePropertyTemplates.url(content);
-}
-
-async function writeUrl(pageId: string, fieldName: string, url: string) {
-  let properties: any = {};
-  writeUrlToObject(properties, fieldName, url);
-  return notion.pages.update({
-    page_id: pageId,
-    properties,
-  });
-}
-
-function writeRichTextTypeTextToObject(
-  currentObject: any,
-  fieldName: string,
-  content: string
-) {
-  currentObject[fieldName] = writePropertyTemplates.rich_text(content);
-}
-
-async function writeRichTextTypeText(
-  pageId: string,
-  fieldName: string,
-  richTextContent: string
-) {
-  let properties: any = {};
-  writeRichTextTypeTextToObject(properties, fieldName, richTextContent);
-  return notion.pages.update({
-    page_id: pageId,
-    properties,
-  });
-}
-
-function writeMultiSelectToObject(
-  currentObject: any,
-  fieldName: string,
-  content: Array<string>
-) {
-  currentObject[fieldName] = writePropertyTemplates.multi_select(content);
-}
-
-async function writeMultiSelect(
-  pageId: string,
-  fieldName: string,
-  options: Array<string>
-) {
-  let properties: any = {};
-  writeMultiSelectToObject(properties, fieldName, options);
-  return notion.pages.update({
-    page_id: pageId,
-    properties,
-  });
-}
-
-async function traverseDbPageWise(
+/** 分页遍历 Notion 数据库的每一条数据 */
+async function traverseDbElementWise(
   notionDbId: string,
   pageSize: number,
-  traverser: (pageId: string, datum: any) => Promise<any>,
-  nextCursor?: string,
+  callAtEachDatum: (
+    pageId: string,
+    pageObject: any,
+    datum: any,
+    hasMore: boolean
+  ) => Promise<any>
 ) {
-  let params = { database_id: notionDbId, page_size: pageSize };
-  if (nextCursor) {
-    params["start_cursor"] = nextCursor;
-  }
+  await traverseNotionDbPages(
+    notion,
+    notionDbId,
+    pageSize,
+    async (dbSliceObject, hasMore) => {
+      const len = dbSliceObject.results.length;
+      for (let i = 0; i < len; i++) {
+        const page = dbSliceObject.results[i] as any;
+        let datum: any = {};
+        const properties = page.properties;
+        for (const propKey in properties) {
+          const prop = properties[propKey];
+          const value = await notion.pages.properties
+            .retrieve({ page_id: page.id, property_id: prop.id })
+            .then((valueObject) =>
+              (readPropertyMethods as any)[prop.type](valueObject)
+            );
+          datum[propKey] = value;
+          await slowDown(400);
+        }
 
-  const pagedResponse = await notion.databases.query(params);
-
-  for (const item of pagedResponse.results) {
-    const id = item.id;
-    const properties = (item as any).properties;
-
-    let propertyValues: Record<string, any> = {};
-    for (const propertyKey in properties) {
-      const property = properties[propertyKey];
-      const propertyType = property.type;
-
-      const propertyValueResp = await notion.pages.properties.retrieve({
-        page_id: id,
-        property_id: property.id,
-      });
-
-      const propertyValueReader = (readPropertyMethods as any)[propertyType];
-      if (propertyValueReader) {
-        const propertyValue = propertyValueReader(propertyValueResp);
-        propertyValues[propertyKey] = propertyValue;
+        await callAtEachDatum(page.id, page, datum, i < len - 1);
       }
 
-      await slowDown(400);
+      if (hasMore) {
+        await slowDown(400);
+      }
     }
-
-    await traverser(item.id,  propertyValues);
-  }
-
-  if (pagedResponse.has_more && pagedResponse.next_cursor) {
-    console.log("Has more data, traverse next page after 1 seconds.");
-    await new Promise((resolve, reject) => {
-      setTimeout(() => {
-        traverseDbPageWise(
-          notionDbId,
-          pageSize,
-          traverser,
-          pagedResponse.next_cursor as string
-        ).then(() => resolve(null)).catch((err) => reject(err));
-      }, 400);
-    });
-  }
-
+  );
 }
 
 async function syncJsonDataToNotionDb(
-  notionDbId: string, 
-  sourceJsonUrl: string, 
-  fieldMappingRequest: FieldMappingRequest,
+  notionDbId: string,
+  sourceJsonUrl: string,
+  fieldMappingRequest: FieldMappingRequest
 ) {
   const sourceFields = fieldMappingRequest.sourceTableKeys;
-  const sourcePrimaryKey = sourceFields[fieldMappingRequest.sourceTablePrimaryKeyIndex].fieldName;
+  const sourcePrimaryKey =
+    sourceFields[fieldMappingRequest.sourceTablePrimaryKeyIndex].fieldName;
   const targetFields = fieldMappingRequest.destinationTableKeys;
-  const targetPrimaryKey = targetFields[fieldMappingRequest.destinationTablePrimaryKeyIndex].fieldName;
-  console.log('Notion Database Id:', notionDbId);
-  console.log('Destination table primary key:', targetPrimaryKey);
+  const targetPrimaryKey =
+    targetFields[fieldMappingRequest.destinationTablePrimaryKeyIndex].fieldName;
+  console.log("Notion Database Id:", notionDbId);
+  console.log("Destination table primary key:", targetPrimaryKey);
 
-  console.log('Getting source data...');
+  console.log("Getting source data...");
   const sourceResp = await axios.get(sourceJsonUrl);
   const sourceData = sourceResp.data;
-  console.log('Source table URL:', sourceJsonUrl);
-  console.log('Source date length:', sourceData.length);
-  console.log('Source table primary key:', sourcePrimaryKey);
+  console.log("Source table URL:", sourceJsonUrl);
+  console.log("Source date length:", sourceData.length);
+  console.log("Source table primary key:", sourcePrimaryKey);
 
-  console.log('Getting Notion database metadata...');
+  console.log("Getting Notion database metadata...");
   const dbMetadata = await getNotionDatabaseFieldList(notion, notionDbId);
-  console.log('Notion database title:', dbMetadata.title);
-  console.log('Notion database URL:', dbMetadata.url);
-  console.log('Notion database UUID:', dbMetadata.uuid);
-  console.log('Notion database fields:');
+  console.log("Notion database title:", dbMetadata.title);
+  console.log("Notion database URL:", dbMetadata.url);
+  console.log("Notion database UUID:", dbMetadata.uuid);
+  console.log("Notion database fields:");
 
-  const notionFieldNameToType: Record<string, string> = makeL1Map(dbMetadata.fields, (datum) => datum.fieldName, (datum) => datum.fieldType);
-  console.log('Notion field name to field type mapping:', notionFieldNameToType);
+  const notionFieldNameToType: Record<string, string> = makeL1Map(
+    dbMetadata.fields,
+    (datum) => datum.fieldName,
+    (datum) => datum.fieldType
+  );
+  console.log(
+    "Notion field name to field type mapping:",
+    notionFieldNameToType
+  );
 
-  const fieldComparatorMap: Record<string, Record<string, FieldComparator>> = makeLevel2Map(fieldComparators, (datum) => datum.lhsFieldType, (datum) => datum.rhsFieldType);
-  console.log('Comparators:', fieldComparatorMap);
+  const fieldComparatorMap: Record<
+    string,
+    Record<string, FieldComparator>
+  > = makeLevel2Map(
+    fieldComparators,
+    (datum) => datum.lhsFieldType,
+    (datum) => datum.rhsFieldType
+  );
 
-  const reconcilerMap: Record<string, Record<string, FieldReconciler>> = makeLevel2Map(fieldReconcilers, (datum) => datum.lhsFieldType, (datum) => datum.rhsFieldType);
-  console.log('Reconcilers:', reconcilerMap);
-  
+  const reconcilerMap: Record<
+    string,
+    Record<string, FieldReconciler>
+  > = makeLevel2Map(
+    fieldReconcilers,
+    (datum) => datum.lhsFieldType,
+    (datum) => datum.rhsFieldType
+  );
+
   // 为原表建立索引 HashMap[主键 -> 元素]
-  const sourceDataIndex: Record<string, any> = makeL1Map(sourceData, (datum: any) => datum[sourcePrimaryKey], (datum) => datum);
+  const sourceDataIndex: Record<string, any> = makeL1Map(
+    sourceData,
+    (datum: any) => datum[sourcePrimaryKey],
+    (datum) => datum
+  );
 
   let deleteList = new Set<string>();
+  await traverseDbElementWise(
+    notionDbId,
+    20,
+    async (pageId, pageObject, datum, hasMore) => {
+      console.log(pageId + ':', pageObject);
+      const key = datum[targetPrimaryKey];
+      console.log(key + ':', datum);
+
+      if (key && sourceDataIndex[key]) {
+        const lhs = sourceDataIndex[key];
+        const rhs = datum;
+        const associations = fieldMappingRequest.associations;
+        for (const association of associations) {
+          const lhsField = fieldMappingRequest.sourceTableKeys[association.sourceTableKeyIdx];
+          const rhsField = fieldMappingRequest.destinationTableKeys[association.destinationTableKeyIdx];
+
+          let equalQ: FieldComparator['isEqual'] = (a: any, b: any) => a === b;
+          if (fieldComparatorMap[lhsField.fieldType]) {
+            if (fieldComparatorMap[lhsField.fieldType][rhsField.fieldType]) {
+              equalQ = fieldComparatorMap[lhsField.fieldType][rhsField.fieldType].isEqual;
+            }
+          }
+
+          const l = lhs[lhsField.fieldName];
+          const r = rhs[rhsField.fieldName];
+          console.log(`lhs: (${lhsField.fieldName}, ${l})`);
+          console.log(`rhs: (${rhsField.fieldName}, ${r})`);
+          console.log(`isEqual: ${equalQ(l, r)}`)
+        }
+      } else {
+        deleteList.add(pageId);
+      }
+
+      if (hasMore) {
+        await slowDown(400);
+      }
+    }
+  );
 
   const traverser = async (notionObjectId: string, datum: any) => {
-    console.log(notionObjectId+':', datum);
+    console.log(notionObjectId + ":", datum);
 
     const key = datum[targetPrimaryKey];
-    console.log('Value of primary key in the target table:', key);
+    console.log("Value of primary key in the target table:", key);
 
     if (!key) {
       // 目标表主键缺失
-      console.log('Primary key missing in target table.');
+      console.log("Primary key missing in target table.");
       deleteList.add(notionObjectId);
     }
-    
+
     const lhs = sourceDataIndex[key];
 
     if (!lhs) {
       // 该条记录在原表中已被删除
-      console.log('Deleted in the source table.');
+      console.log("Deleted in the source table.");
       deleteList.add(notionObjectId);
     }
 
-    console.log('Lhs', lhs);
+    console.log("Lhs", lhs);
     const rhs = datum;
-    console.log('Rhs', rhs);
+    console.log("Rhs", rhs);
 
-    console.log('Comparing...');
+    console.log("Comparing...");
     for (const association of fieldMappingRequest.associations) {
       const lhsKeyIdx = association.sourceTableKeyIdx;
       const lhsField = fieldMappingRequest.sourceTableKeys[lhsKeyIdx];
@@ -236,9 +213,10 @@ async function syncJsonDataToNotionDb(
       const rhsField = fieldMappingRequest.destinationTableKeys[rhsKeyIdx];
       const rhsValue = (rhs as any)[rhsField.fieldName];
 
-      let equal: FieldComparator['isEqual'] = (a: any, b: any) => a === b;
+      let equal: FieldComparator["isEqual"] = (a: any, b: any) => a === b;
       if (fieldComparatorMap[lhsField.fieldType]) {
-        const fieldComparator = fieldComparatorMap[lhsField.fieldType][rhsField.fieldType];
+        const fieldComparator =
+          fieldComparatorMap[lhsField.fieldType][rhsField.fieldType];
         if (fieldComparator) {
           equal = fieldComparator.isEqual;
         }
@@ -246,13 +224,16 @@ async function syncJsonDataToNotionDb(
 
       const isEqual = equal(lhsValue, rhsValue);
 
-      console.log(`Compare: (${lhsField.fieldName}, ${lhsValue}) -- (${rhsField.fieldName}, ${rhsValue}) ==> ${isEqual}`);
+      console.log(
+        `Compare: (${lhsField.fieldName}, ${lhsValue}) -- (${rhsField.fieldName}, ${rhsValue}) ==> ${isEqual}`
+      );
       if (!isEqual) {
         let desiredRhsValue = lhsValue;
-        console.log('Desired rhs value:', desiredRhsValue);
+        console.log("Desired rhs value:", desiredRhsValue);
 
         if (reconcilerMap[lhsField.fieldType]) {
-          const reconcilerOperator = reconcilerMap[lhsField.fieldType][rhsField.fieldType].fromLhsToRhs;
+          const reconcilerOperator =
+            reconcilerMap[lhsField.fieldType][rhsField.fieldType].fromLhsToRhs;
           if (reconcilerOperator) {
             desiredRhsValue = reconcilerOperator(lhsValue);
           }
@@ -260,16 +241,21 @@ async function syncJsonDataToNotionDb(
 
         let writeTemplate = (writePropertyTemplates as any)[rhsField.fieldType];
         if (writeTemplate) {
-          console.log('Updating...');
-          const updatePropertyResponse = await notion.pages.update({ page_id: notionObjectId, properties: { [rhsField.fieldName]: writeTemplate(desiredRhsValue) } });
-          console.log('Updated:', updatePropertyResponse.id);
+          console.log("Updating...");
+          const updatePropertyResponse = await notion.pages.update({
+            page_id: notionObjectId,
+            properties: {
+              [rhsField.fieldName]: writeTemplate(desiredRhsValue),
+            },
+          });
+          console.log("Updated:", updatePropertyResponse.id);
           await slowDown(400);
         }
       }
     }
-  }
+  };
 
-  traverseDbPageWise(notionDbId, 10, traverser);
+  // traverseDbElementWise(notionDbId, 10, traverser);
 }
 
 function main() {
@@ -278,19 +264,19 @@ function main() {
   const dbId = process.argv[2];
   console.log("Database Id:", dbId);
 
-  const jsonUrl = process.env['DATA_GITHUB_FRIEND_LINK_LIST_JSON'] as string;
+  const jsonUrl = process.env["DATA_GITHUB_FRIEND_LINK_LIST_JSON"] as string;
 
   let sourceTablePrimaryKeyIndex = 0;
   let destinationTablePrimaryKeyIndex = 0;
   for (let i = 0; i < githubFriendLinkListFields.length; i++) {
-    if (githubFriendLinkListFields[i].fieldName === 'link') {
+    if (githubFriendLinkListFields[i].fieldName === "link") {
       sourceTablePrimaryKeyIndex = i;
       break;
     }
   }
 
   for (let i = 0; i < notionFriendLinkListFields.length; i++) {
-    if (notionFriendLinkListFields[i].fieldName === 'Link') {
+    if (notionFriendLinkListFields[i].fieldName === "Link") {
       destinationTablePrimaryKeyIndex = i;
       break;
     }
