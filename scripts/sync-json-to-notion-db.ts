@@ -1,7 +1,6 @@
 import { Client } from "@notionhq/client";
 import dotenv from "dotenv";
 import axios from "axios";
-import { isEqual, parse } from "date-fns";
 import { getNotionDatabaseFieldList } from "../src/notion-relateds/get-notion-db-field-list";
 import {
   readPropertyMethods,
@@ -22,7 +21,7 @@ import {
 import { makeLevel2Map } from "../src/utils/make-level2-map";
 import { makeL1Map } from "../src/utils/make-level1-map";
 import { traverseNotionDbPages } from "../src/notion-relateds/utils/traverse-db-pages";
-import { slowDown } from '../src/utils/slow';
+import { slowDown } from "../src/utils/slow";
 
 dotenv.config();
 
@@ -78,9 +77,17 @@ async function syncJsonDataToNotionDb(
   const sourcePrimaryKey = fieldMappingRequest.lhsPrimaryKey;
   const targetPrimaryKey = fieldMappingRequest.rhsPrimaryKey;
 
-  const lhsFieldMap = makeL1Map(fieldMappingRequest.lhsFields, (datum) => datum.fieldName, (datum) => datum);
-  const rhsFieldMap = makeL1Map(fieldMappingRequest.rhsFields, (datum) => datum.fieldName, (datum) => datum);
-    
+  const lhsFieldMap = makeL1Map(
+    fieldMappingRequest.lhsFields,
+    (datum) => datum.fieldName,
+    (datum) => datum
+  );
+  const rhsFieldMap = makeL1Map(
+    fieldMappingRequest.rhsFields,
+    (datum) => datum.fieldName,
+    (datum) => datum
+  );
+
   console.log("Notion Database Id:", notionDbId);
   console.log("Destination table primary key:", targetPrimaryKey);
 
@@ -222,15 +229,16 @@ async function syncJsonDataToNotionDb(
 
   for (const key of addList) {
     const datum = sourceDataIndex[key];
-    console.log('Creating:', datum);
+    console.log("Creating:", datum);
     let properties: any = {};
     for (const association of fieldMappingRequest.associations) {
       const lhsField = lhsFieldMap[association.lhsFieldName];
       const rhsField = rhsFieldMap[association.rhsFieldName];
-      let reconciler: FieldReconciler['fromLhsToRhs'] = (x: any) => x;
+      let reconciler: FieldReconciler["fromLhsToRhs"] = (x: any) => x;
       if (reconcilerMap[lhsField.fieldType]) {
         if (reconcilerMap[lhsField.fieldType][rhsField.fieldType]) {
-          reconciler = reconcilerMap[lhsField.fieldType][rhsField.fieldType].fromLhsToRhs;
+          reconciler =
+            reconcilerMap[lhsField.fieldType][rhsField.fieldType].fromLhsToRhs;
         }
       }
       const rhsValue = reconciler(datum[lhsField.fieldName]);
@@ -244,7 +252,7 @@ async function syncJsonDataToNotionDb(
       parent: { type: "database_id", database_id: notionDbId },
       properties,
     });
-    console.log('Created:', resp.id);
+    console.log("Created:", resp.id);
     await slowDown(400);
   }
 }
@@ -253,45 +261,27 @@ function main() {
   // Get db id from commandline argv,
   // It is assume that this code execute via ts-node <modulepath> <dbId>
 
-  const testDbId = '63d3f33b481b438f87c055710d30df8b';
-  const testJsonUrl = 'http://localhost:3000/test/testjson.json';
+  const testDbId = "63d3f33b481b438f87c055710d30df8b";
+  const testJsonUrl = "http://localhost:3000/test/testjson.json";
 
-  const dbId = testDbId ?? process.env['NOTION_DB_ID'] as string;
-  const notionToken = process.env['NOTION_TOKEN'] as string;
+  const dbId = testDbId ?? (process.env["NOTION_DB_ID"] as string);
+  const notionToken = process.env["NOTION_TOKEN"] as string;
   const jsonUrl = process.env["DATA_GITHUB_FRIEND_LINK_LIST_JSON"] as string;
 
   console.log("Database Id:", dbId);
   console.log("JSON URL:", jsonUrl);
 
   const notion = new Client({
-    auth: notionToken
+    auth: notionToken,
   });
 
-  let sourceTablePrimaryKeyIndex = 0;
-  let destinationTablePrimaryKeyIndex = 0;
-  for (let i = 0; i < githubFriendLinkListFields.length; i++) {
-    if (githubFriendLinkListFields[i].fieldName === "link") {
-      sourceTablePrimaryKeyIndex = i;
-      break;
-    }
-  }
-
-  for (let i = 0; i < notionFriendLinkListFields.length; i++) {
-    if (notionFriendLinkListFields[i].fieldName === "Link") {
-      destinationTablePrimaryKeyIndex = i;
-      break;
-    }
-  }
-
-  const fieldMappingRequest: FieldMappingRequest = {
+  syncJsonDataToNotionDb(notion, dbId, jsonUrl, {
     lhsFields: githubFriendLinkListFields,
     rhsFields: notionFriendLinkListFields,
-    lhsPrimaryKey: 'link',
-    rhsPrimaryKey: 'Link',
+    lhsPrimaryKey: "link",
+    rhsPrimaryKey: "Link",
     associations: fieldAssociations,
-  };
-
-  syncJsonDataToNotionDb(notion, dbId, jsonUrl, fieldMappingRequest);
+  });
 }
 
 main();
