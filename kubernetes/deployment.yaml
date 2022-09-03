@@ -105,18 +105,19 @@ spec:
                   name: get-notion-rss-feeds-configmap
                   key: redis_port
                   optional: false
+            - name: NOTION_ARTICLE_LIST_DB_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap
+                  key: article_list_db_id
+                  optional: false
             - name: NOTION_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: notion-integration-keys
                   key: get-notion-rss-feeds-integration-key
                   optional: false
-            - name: NOTION_ARTICLE_LIST_DB_ID
-              valueFrom:
-                secretKeyRef:
-                  name: notion-secrets
-                  key: notion-article-db-id
-                  optional: false
+            
           ports:
             - containerPort: 3000
           resources:
