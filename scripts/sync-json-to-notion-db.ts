@@ -185,6 +185,8 @@ async function syncListToNotionDb(
     addList.add(key);
   }
 
+  console.log(`Patch generated: ${addList.size} creates, ${deleteList.size} deletes, ${updateList.length} updates`);
+
   for (const prop of updateList) {
     console.log("Updating:", prop);
     const resp = await notion.pages.update(prop);
@@ -234,9 +236,7 @@ async function main() {
   // Get db id from commandline argv,
   // It is assume that this code execute via ts-node <modulepath> <dbId>
 
-  const testDbId = "63d3f33b481b438f87c055710d30df8b";
-
-  const dbId = testDbId ?? (process.env["NOTION_DB_ID"] as string);
+  const dbId = '63d3f33b481b438f87c055710d30df8b';
   const notionToken = process.env["NOTION_TOKEN"] as string;
   const jsonUrl = process.env["DATA_GITHUB_FRIEND_LINK_LIST_JSON"] as string;
 
