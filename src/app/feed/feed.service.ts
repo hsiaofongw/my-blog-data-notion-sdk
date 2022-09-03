@@ -73,7 +73,7 @@ export class FeedService {
       auth: process.env.NOTION_TOKEN,
     });
 
-    const dbId = process.env.NOTION_DB_ID as string;
+    const dbId = process.env.NOTION_ARTICLE_LIST_DB_ID as string;
 
     const response = await notion.databases.query({
       database_id: dbId,
