@@ -309,9 +309,7 @@ async function main() {
       associations: associations,
     });
   } else {
-    console.log(
-      "Usage: ts-node sync-json-to-notion-db.ts --jsonUrl <jsonUrl> --notionDbId <notionDbId> --notionTokenEnvName <notionTokenEnvName>"
-    );
+    console.log('Missing required arguments.');
   }
 }
 
