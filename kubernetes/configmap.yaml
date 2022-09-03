@@ -19,4 +19,4 @@ data:
   feed_category: "Notes"
   feed_generator: "feed.js"
   data_github_friend_link_list_json: "https://raw.githubusercontent.com/hsiaofongw/blog-data-nextjs/main/data/cards.json"
-  
+
