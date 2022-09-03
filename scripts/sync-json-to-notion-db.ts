@@ -22,21 +22,13 @@ import {
 import { makeLevel2Map } from "../src/utils/make-level2-map";
 import { makeL1Map } from "../src/utils/make-level1-map";
 import { traverseNotionDbPages } from "../src/notion-relateds/utils/traverse-db-pages";
+import { slowDown } from '../src/utils/slow';
 
 dotenv.config();
-const notion = new Client({
-  auth: process.env.NOTION_TOKEN,
-});
-
-const slowDown = (ms: number): Promise<null> => {
-  return new Promise((resolve) => {
-    // console.log(`Sleeping for ${ms} miliseconds...`);
-    setTimeout(() => resolve(null), ms);
-  });
-};
 
 /** 分页遍历 Notion 数据库的每一条数据 */
 async function traverseDbElementWise(
+  notion: Client,
   notionDbId: string,
   pageSize: number,
   callAtEachDatum: (
@@ -78,16 +70,17 @@ async function traverseDbElementWise(
 }
 
 async function syncJsonDataToNotionDb(
+  notion: Client,
   notionDbId: string,
   sourceJsonUrl: string,
   fieldMappingRequest: FieldMappingRequest
 ) {
-  const sourceFields = fieldMappingRequest.sourceTableKeys;
-  const sourcePrimaryKey =
-    sourceFields[fieldMappingRequest.sourceTablePrimaryKeyIndex].fieldName;
-  const targetFields = fieldMappingRequest.destinationTableKeys;
-  const targetPrimaryKey =
-    targetFields[fieldMappingRequest.destinationTablePrimaryKeyIndex].fieldName;
+  const sourcePrimaryKey = fieldMappingRequest.lhsPrimaryKey;
+  const targetPrimaryKey = fieldMappingRequest.rhsPrimaryKey;
+
+  const lhsFieldMap = makeL1Map(fieldMappingRequest.lhsFields, (datum) => datum.fieldName, (datum) => datum);
+  const rhsFieldMap = makeL1Map(fieldMappingRequest.rhsFields, (datum) => datum.fieldName, (datum) => datum);
+    
   console.log("Notion Database Id:", notionDbId);
   console.log("Destination table primary key:", targetPrimaryKey);
 
@@ -147,6 +140,7 @@ async function syncJsonDataToNotionDb(
   let addList = new Set<string>();
 
   await traverseDbElementWise(
+    notion,
     notionDbId,
     20,
     async (pageId, pageObject, datum, hasMore) => {
@@ -159,12 +153,8 @@ async function syncJsonDataToNotionDb(
         const rhs = datum;
         const associations = fieldMappingRequest.associations;
         for (const association of associations) {
-          const lhsField =
-            fieldMappingRequest.sourceTableKeys[association.sourceTableKeyIdx];
-          const rhsField =
-            fieldMappingRequest.destinationTableKeys[
-              association.destinationTableKeyIdx
-            ];
+          const lhsField = lhsFieldMap[association.lhsFieldName];
+          const rhsField = rhsFieldMap[association.rhsFieldName];
 
           let equalQ: FieldComparator["isEqual"] = (a: any, b: any) => a === b;
           if (fieldComparatorMap[lhsField.fieldType]) {
@@ -235,8 +225,8 @@ async function syncJsonDataToNotionDb(
     console.log('Creating:', datum);
     let properties: any = {};
     for (const association of fieldMappingRequest.associations) {
-      const lhsField = fieldMappingRequest.sourceTableKeys[association.sourceTableKeyIdx];
-      const rhsField = fieldMappingRequest.destinationTableKeys[association.destinationTableKeyIdx];
+      const lhsField = lhsFieldMap[association.lhsFieldName];
+      const rhsField = rhsFieldMap[association.rhsFieldName];
       let reconciler: FieldReconciler['fromLhsToRhs'] = (x: any) => x;
       if (reconcilerMap[lhsField.fieldType]) {
         if (reconcilerMap[lhsField.fieldType][rhsField.fieldType]) {
@@ -262,10 +252,20 @@ async function syncJsonDataToNotionDb(
 function main() {
   // Get db id from commandline argv,
   // It is assume that this code execute via ts-node <modulepath> <dbId>
-  const dbId = process.argv[2];
-  console.log("Database Id:", dbId);
 
+  const testDbId = '63d3f33b481b438f87c055710d30df8b';
+  const testJsonUrl = 'http://localhost:3000/test/testjson.json';
+
+  const dbId = testDbId ?? process.env['NOTION_DB_ID'] as string;
+  const notionToken = process.env['NOTION_TOKEN'] as string;
   const jsonUrl = process.env["DATA_GITHUB_FRIEND_LINK_LIST_JSON"] as string;
+
+  console.log("Database Id:", dbId);
+  console.log("JSON URL:", jsonUrl);
+
+  const notion = new Client({
+    auth: notionToken
+  });
 
   let sourceTablePrimaryKeyIndex = 0;
   let destinationTablePrimaryKeyIndex = 0;
@@ -284,15 +284,14 @@ function main() {
   }
 
   const fieldMappingRequest: FieldMappingRequest = {
-    sourceTableKeys: githubFriendLinkListFields,
-    destinationTableKeys: notionFriendLinkListFields,
-    sourceTablePrimaryKeyIndex: sourceTablePrimaryKeyIndex,
-    destinationTablePrimaryKeyIndex: destinationTablePrimaryKeyIndex,
+    lhsFields: githubFriendLinkListFields,
+    rhsFields: notionFriendLinkListFields,
+    lhsPrimaryKey: 'link',
+    rhsPrimaryKey: 'Link',
     associations: fieldAssociations,
   };
 
-  syncJsonDataToNotionDb(dbId, jsonUrl, fieldMappingRequest);
-  return;
+  syncJsonDataToNotionDb(notion, dbId, jsonUrl, fieldMappingRequest);
 }
 
 main();
