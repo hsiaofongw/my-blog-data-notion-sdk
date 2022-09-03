@@ -24,8 +24,8 @@ ts-node scripts/sync-json-to-notion-db.ts \
   --rhsField 'Avatar:url' \
   --rhsField 'AddDate:date' \
   --rhsField 'Link:url' \
-  --assocation 'title:Title' \
-  --assocation 'description:Description' \
-  --assocation 'avatar:Avatar' \
-  --assocation 'addDate:AddDate' \
-  --assocation 'link:Link' 
+  --association 'title:Title' \
+  --association 'description:Description' \
+  --association 'avatar:Avatar' \
+  --association 'addDate:AddDate' \
+  --association 'link:Link' 
