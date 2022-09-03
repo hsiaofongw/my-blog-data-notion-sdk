@@ -3,14 +3,13 @@ import dotenv from "dotenv";
 import { getNotionDatabaseFieldList } from "../src/notion-relateds/get-notion-db-field-list";
 import { writePropertyTemplates } from "../src/notion-relateds/write-property-templates";
 import {
+  FieldAssociation,
   FieldComparator,
+  FieldDescriptor,
   FieldMappingRequest,
   FieldReconciler,
 } from "../src/notion-relateds/types";
 import {
-  githubFriendLinkListFields,
-  notionFriendLinkListFields,
-  fieldAssociations,
   fieldComparators,
   fieldReconcilers,
 } from "../src/notion-relateds/fields-config";
@@ -19,8 +18,11 @@ import { makeL1Map } from "../src/utils/make-level1-map";
 import { slowDown } from "../src/utils/slow";
 import { traverseDbElementWise } from "../src/notion-relateds/utils/traverse-db-elements";
 import { getFromL2 } from "../src/utils/get-from-l2-map";
+import {
+  parseCommandlineArguments,
+  parseColumnSeparatedPair,
+} from "../src/utils/parse";
 import axios from "axios";
-import { cards } from '../src/test/cards';
 
 dotenv.config();
 
@@ -185,7 +187,9 @@ async function syncListToNotionDb(
     addList.add(key);
   }
 
-  console.log(`Patch generated: ${addList.size} creates, ${deleteList.size} deletes, ${updateList.length} updates`);
+  console.log(
+    `Patch generated: ${addList.size} creates, ${deleteList.size} deletes, ${updateList.length} updates`
+  );
 
   for (const prop of updateList) {
     console.log("Updating:", prop);
@@ -219,7 +223,7 @@ async function syncListToNotionDb(
       if (writeTemplate) {
         properties[rhsField.fieldName] = writeTemplate(rhsValue);
       } else {
-        console.error('No write template for type:', rhsField.fieldType);
+        console.error("No write template for type:", rhsField.fieldType);
       }
     }
 
@@ -232,31 +236,83 @@ async function syncListToNotionDb(
   }
 }
 
+function parseFieldDescriptor(argumentValue: string): FieldDescriptor {
+  const parsedArgumentValue = parseColumnSeparatedPair(argumentValue);
+  return {
+    fieldName: parsedArgumentValue.key,
+    fieldType: parsedArgumentValue.value,
+  };
+}
+
+function parseFieldDescriptors(
+  argumentValues: Array<string>
+): Array<FieldDescriptor> {
+  return argumentValues.map((argumentValue) =>
+    parseFieldDescriptor(argumentValue)
+  );
+}
+
+function parseFieldAssociations(
+  argumentValues: Array<string>
+): Array<FieldAssociation> {
+  return argumentValues
+    .map((argumentValue) => parseColumnSeparatedPair(argumentValue))
+    .map((parsedArgumentValue) => ({
+      lhsFieldName: parsedArgumentValue.key,
+      rhsFieldName: parsedArgumentValue.value,
+    }));
+}
+
 async function main() {
   // Get db id from commandline argv,
   // It is assume that this code execute via ts-node <modulepath> <dbId>
+  const parsedArg = parseCommandlineArguments(process.argv, [
+    "--resourceType", // currently support 'json' only, will support 'rss', 'atom', 'yaml' in the future
+    "--jsonUrl", // URL of the JSON resource
+    "--notionDbId", // Notion database id
+    "--notionTokenEnvName", // Name of the environment variable that store the content of Notion Integration Token
+    "--lhsField", // Source table field, format: <fieldName>:<type>
+    "--rhsField", // Target table field, format: <fieldName>:<type>
+    "--lhsPrimaryKey", // Source table primary key, current only support one field, format: <fieldName>
+    "--rhsPrimaryKey", // Target table primary key
+    "--association", // Association between source table field and destination table field, format: <fieldName>:<fieldName>
+  ]);
 
-  const dbId = '63d3f33b481b438f87c055710d30df8b';
-  const notionToken = process.env["NOTION_TOKEN"] as string;
-  const jsonUrl = process.env["DATA_GITHUB_FRIEND_LINK_LIST_JSON"] as string;
+  const jsonUrl = parsedArg["--jsonUrl"][0] ?? "";
+  const notionDbId = parsedArg["--notionDbId"][0] ?? "";
+  const notionTokenEnvName = parsedArg["--notionTokenEnvName"][0] ?? "";
+  const lhsFields = parseFieldDescriptors(parsedArg["--lhsField"]);
+  const rhsFields = parseFieldDescriptors(parsedArg["--rhsField"]);
+  const lhsPmKey = parsedArg["--lhsPrimaryKey"][0] ?? "";
+  const rhsPmKey = parsedArg["--rhsPrimaryKey"][0] ?? "";
+  const associations = parseFieldAssociations(parsedArg["--association"]);
 
-  console.log("Database Id:", dbId);
-  console.log("JSON URL:", jsonUrl);
+  if (jsonUrl && notionDbId && notionTokenEnvName) {
+    const notionToken = process.env[notionTokenEnvName] as string;
+    if (!notionToken) {
+      console.error("Notion token not found.");
+      return;
+    }
 
-  const notion = new Client({
-    auth: notionToken,
-  });
+    console.log("JSON URL:", jsonUrl);
+    console.log("Database Id:", notionDbId);
+    const notion = new Client({
+      auth: notionToken,
+    });
 
-  let sourceData = await axios.get(jsonUrl).then((resp) => resp.data);
-  sourceData = cards;
-
-  await syncListToNotionDb(sourceData, notion, dbId, {
-    lhsFields: githubFriendLinkListFields,
-    rhsFields: notionFriendLinkListFields,
-    lhsPrimaryKey: "link",
-    rhsPrimaryKey: "Link",
-    associations: fieldAssociations,
-  });
+    const sourceData = await axios.get(jsonUrl).then((resp) => resp.data);
+    await syncListToNotionDb(sourceData, notion, notionDbId, {
+      lhsFields: lhsFields,
+      rhsFields: rhsFields,
+      lhsPrimaryKey: lhsPmKey,
+      rhsPrimaryKey: rhsPmKey,
+      associations: associations,
+    });
+  } else {
+    console.log(
+      "Usage: ts-node sync-json-to-notion-db.ts --jsonUrl <jsonUrl> --notionDbId <notionDbId> --notionTokenEnvName <notionTokenEnvName>"
+    );
+  }
 }
 
 main();
