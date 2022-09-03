@@ -1,9 +1,7 @@
 import { Client } from "@notionhq/client";
 import dotenv from "dotenv";
-import axios from "axios";
 import { getNotionDatabaseFieldList } from "../src/notion-relateds/get-notion-db-field-list";
 import {
-  readPropertyMethods,
   writePropertyTemplates,
 } from "../src/notion-relateds/write-property-templates";
 import {
@@ -20,53 +18,10 @@ import {
 } from "../src/notion-relateds/fields-config";
 import { makeLevel2Map } from "../src/utils/make-level2-map";
 import { makeL1Map } from "../src/utils/make-level1-map";
-import { traverseNotionDbPages } from "../src/notion-relateds/utils/traverse-db-pages";
 import { slowDown } from "../src/utils/slow";
+import { traverseDbElementWise } from "../src/notion-relateds/utils/traverse-db-elements";
 
 dotenv.config();
-
-/** 分页遍历 Notion 数据库的每一条数据 */
-async function traverseDbElementWise(
-  notion: Client,
-  notionDbId: string,
-  pageSize: number,
-  callAtEachDatum: (
-    pageId: string,
-    pageObject: any,
-    datum: any,
-    hasMore: boolean
-  ) => Promise<any>
-) {
-  await traverseNotionDbPages(
-    notion,
-    notionDbId,
-    pageSize,
-    async (dbSliceObject, hasMore) => {
-      const len = dbSliceObject.results.length;
-      for (let i = 0; i < len; i++) {
-        const page = dbSliceObject.results[i] as any;
-        let datum: any = {};
-        const properties = page.properties;
-        for (const propKey in properties) {
-          const prop = properties[propKey];
-          const value = await notion.pages.properties
-            .retrieve({ page_id: page.id, property_id: prop.id })
-            .then((valueObject) =>
-              (readPropertyMethods as any)[prop.type](valueObject)
-            );
-          datum[propKey] = value;
-          await slowDown(400);
-        }
-
-        await callAtEachDatum(page.id, page, datum, i < len - 1);
-      }
-
-      if (hasMore) {
-        await slowDown(400);
-      }
-    }
-  );
-}
 
 async function syncListToNotionDb(
   sourceData: Array<any>,
