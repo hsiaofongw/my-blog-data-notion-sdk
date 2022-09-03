@@ -15,10 +15,6 @@ export const notionFriendLinkListFields: Array<FieldDescriptor> = [
   { fieldName: "Link", fieldType: "url" },
 ];
 
-/** JSON 文件链接 */
-export const githubFriendLinksJSONUrl =
-  process.env["DATA_GITHUB_FRIEND_LINK_LIST_JSON"];
-
 /** JSON 文件中的字段 */
 export const githubFriendLinkListFields: Array<FieldDescriptor> = [
   { fieldName: "title", fieldType: "string" },
@@ -30,11 +26,11 @@ export const githubFriendLinkListFields: Array<FieldDescriptor> = [
 
 /** 字段对应关系 */
 export const fieldAssociations: FieldMappingRequest['associations'] = [
-  { sourceTableKeyIdx: 0, destinationTableKeyIdx: 0 },
-  { sourceTableKeyIdx: 1, destinationTableKeyIdx: 1 },
-  { sourceTableKeyIdx: 2, destinationTableKeyIdx: 2 },
-  { sourceTableKeyIdx: 3, destinationTableKeyIdx: 3 },
-  { sourceTableKeyIdx: 4, destinationTableKeyIdx: 4 },
+  { lhsFieldName: 'title', rhsFieldName: 'Title' },
+  { lhsFieldName: 'description', rhsFieldName: 'Description' },
+  { lhsFieldName: 'avatar', rhsFieldName: 'Avatar' },
+  { lhsFieldName: 'addDate', rhsFieldName: 'AddDate' },
+  { lhsFieldName: 'link', rhsFieldName: 'Link' },
 ];
 
 /** JSON 文件中的日期的格式 */
