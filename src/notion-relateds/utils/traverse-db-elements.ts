@@ -1,5 +1,5 @@
 import { Client } from "@notionhq/client";
-import { slowDown } from "src/utils/slow";
+import { slowDown } from '../../../src/utils/slow';
 import { readPropertyMethods } from "../write-property-templates";
 import { traverseNotionDbPages } from "./traverse-db-pages";
 

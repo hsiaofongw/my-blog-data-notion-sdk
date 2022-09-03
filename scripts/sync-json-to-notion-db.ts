@@ -20,6 +20,7 @@ import { slowDown } from "../src/utils/slow";
 import { traverseDbElementWise } from "../src/notion-relateds/utils/traverse-db-elements";
 import { getFromL2 } from "../src/utils/get-from-l2-map";
 import axios from "axios";
+import { cards } from '../src/test/cards';
 
 dotenv.config();
 
@@ -246,7 +247,8 @@ async function main() {
     auth: notionToken,
   });
 
-  const sourceData = await axios.get(jsonUrl).then((resp) => resp.data);
+  let sourceData = await axios.get(jsonUrl).then((resp) => resp.data);
+  sourceData = cards;
 
   await syncListToNotionDb(sourceData, notion, dbId, {
     lhsFields: githubFriendLinkListFields,

@@ -1,4 +1,4 @@
-import { FieldDescriptor, NotionDBFieldDescriptor } from "./types";
+import { NotionDBFieldDescriptor } from "./types";
 import { Client } from "@notionhq/client";
 
 /** 用于获取 Notion 数据库的字段列表 */
