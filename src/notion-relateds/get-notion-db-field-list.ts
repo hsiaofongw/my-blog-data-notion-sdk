@@ -15,8 +15,6 @@ export async function getNotionDatabaseFieldList(
     database_id: databaseId,
   });
 
-  // console.log('Field list:', dbFieldListResponse);
-
   const title = (dbFieldListResponse as any)?.title[0]?.plain_text;
   const url = (dbFieldListResponse as any)?.url;
   const uuid = (dbFieldListResponse as any)?.id;

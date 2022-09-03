@@ -12,6 +12,7 @@ export const writePropertyTemplates = {
   multi_select: (content: Array<string>) => ({
     multi_select: content.map((option) => ({ name: option })),
   }),
+  number: (content: number) => ({ number: content }),
 };
 
 export const readPropertyMethods = {
