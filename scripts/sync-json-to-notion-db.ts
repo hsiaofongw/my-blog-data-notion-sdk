@@ -1,9 +1,7 @@
 import { Client } from "@notionhq/client";
 import dotenv from "dotenv";
 import { getNotionDatabaseFieldList } from "../src/notion-relateds/get-notion-db-field-list";
-import {
-  writePropertyTemplates,
-} from "../src/notion-relateds/write-property-templates";
+import { writePropertyTemplates } from "../src/notion-relateds/write-property-templates";
 import {
   FieldComparator,
   FieldMappingRequest,
@@ -20,6 +18,7 @@ import { makeLevel2Map } from "../src/utils/make-level2-map";
 import { makeL1Map } from "../src/utils/make-level1-map";
 import { slowDown } from "../src/utils/slow";
 import { traverseDbElementWise } from "../src/notion-relateds/utils/traverse-db-elements";
+import { getFromL2 } from "../src/utils/get-from-l2-map";
 import axios from "axios";
 
 dotenv.config();
@@ -109,7 +108,7 @@ async function syncListToNotionDb(
   // 注意：我们只是在这个函数里面收集 1,2,3，并不真正地去执行更新/删除/插入操作，这些操作的执行是在后面。
   // 这是一种思想：把更新过程拆分为两个相对独立的子过程，分别是 Diff 过程 和 Apply 过程，
   // Diff 过程负责生成 Patch, Apply 过程负责应用 Patch.
-  // 这样做的好处是什么？方便调试。
+  // 这样做的好处是什么？方便后续的维护、扩展和开发过程中的调试。
   await traverseDbElementWise(
     notion,
     notionDbId,
@@ -120,7 +119,7 @@ async function syncListToNotionDb(
       console.log(`Check ${pageId},${key}`);
 
       if (key && sourceDataIndex[key]) {
-        console.log('Primary key exist both on rhs and lhs');
+        console.log("Primary key exist both on rhs and lhs");
         const lhs = sourceDataIndex[key];
         const rhs = datum;
         const associations = fieldMappingRequest.associations;
@@ -128,37 +127,43 @@ async function syncListToNotionDb(
           const lhsField = lhsFieldMap[association.lhsFieldName];
           const rhsField = rhsFieldMap[association.rhsFieldName];
 
-          let equalQ: FieldComparator["isEqual"] = (a: any, b: any) => a === b;
-          if (fieldComparatorMap[lhsField.fieldType]) {
-            if (fieldComparatorMap[lhsField.fieldType][rhsField.fieldType]) {
-              equalQ =
-                fieldComparatorMap[lhsField.fieldType][rhsField.fieldType]
-                  .isEqual;
-            }
-          }
+          const equalQ: FieldComparator["isEqual"] = getFromL2(
+            fieldComparatorMap,
+            lhsField.fieldType,
+            rhsField.fieldType,
+            (datum) => datum.isEqual,
+            (a: any, b: any) => a === b
+          );
 
           const l = lhs[lhsField.fieldName];
           const r = rhs[rhsField.fieldName];
           const isEqual = equalQ(l, r);
-          console.log(`Check equal: (${lhsField.fieldName}, ${l}) -- (${rhsField.fieldName}, ${r}) => ${isEqual}`);
+          console.log(
+            `Check equal: (${lhsField.fieldName}, ${l}) -- (${rhsField.fieldName}, ${r}) => ${isEqual}`
+          );
           if (!isEqual) {
-            let desiredRhsValue = l;
+            const reconcilerOperator = getFromL2(
+              reconcilerMap,
+              lhsField.fieldType,
+              rhsField.fieldType,
+              (datum) => datum.fromLhsToRhs,
+              (x: any) => x
+            );
+            const desiredRhsValue = reconcilerOperator(l);
 
-            if (reconcilerMap[lhsField.fieldType]) {
-              const reconcilerOperator =
-                reconcilerMap[lhsField.fieldType][rhsField.fieldType]
-                  .fromLhsToRhs;
-              if (reconcilerOperator) {
-                desiredRhsValue = reconcilerOperator(l);
-              }
-            }
-
-            let writeTemplate = (writePropertyTemplates as any)[
+            const writeTemplate = (writePropertyTemplates as any)[
               rhsField.fieldType
             ];
             if (writeTemplate) {
-              console.log(`Update ${pageId}, ${key}: (${rhsField.fieldName}, ${r}) -> ${desiredRhsValue}`);
-              updateList.push({ page_id: pageId, properties: { [rhsField.fieldName]: writeTemplate(desiredRhsValue) } });
+              console.log(
+                `Update ${pageId}, ${key}: (${rhsField.fieldName}, ${r}) -> ${desiredRhsValue}`
+              );
+              updateList.push({
+                page_id: pageId,
+                properties: {
+                  [rhsField.fieldName]: writeTemplate(desiredRhsValue),
+                },
+              });
             }
           }
         }
@@ -175,13 +180,14 @@ async function syncListToNotionDb(
   );
 
   for (const key in sourceDataIndex) {
-    console.log(`Insert ${key}`);
+    console.log(`Create ${key}`);
     addList.add(key);
   }
 
   for (const prop of updateList) {
+    console.log("Updating:", prop);
     const resp = await notion.pages.update(prop);
-
+    console.log("Updated:", resp.id);
   }
 
   for (const pageId of deleteList) {
@@ -192,22 +198,25 @@ async function syncListToNotionDb(
 
   for (const key of addList) {
     const datum = sourceDataIndex[key];
-    console.log("Creating:", datum);
+    console.log("Creating:", key);
     let properties: any = {};
     for (const association of fieldMappingRequest.associations) {
       const lhsField = lhsFieldMap[association.lhsFieldName];
       const rhsField = rhsFieldMap[association.rhsFieldName];
-      let reconciler: FieldReconciler["fromLhsToRhs"] = (x: any) => x;
-      if (reconcilerMap[lhsField.fieldType]) {
-        if (reconcilerMap[lhsField.fieldType][rhsField.fieldType]) {
-          reconciler =
-            reconcilerMap[lhsField.fieldType][rhsField.fieldType].fromLhsToRhs;
-        }
-      }
-      const rhsValue = reconciler(datum[lhsField.fieldName]);
+      const reconcilerOperator = getFromL2(
+        reconcilerMap,
+        lhsField.fieldType,
+        rhsField.fieldType,
+        (datum) => datum.fromLhsToRhs,
+        (x: any) => x
+      );
+
+      const rhsValue = reconcilerOperator(datum[lhsField.fieldName]);
       const writeTemplate = (writePropertyTemplates as any)[rhsField.fieldType];
       if (writeTemplate) {
         properties[rhsField.fieldName] = writeTemplate(rhsValue);
+      } else {
+        console.error('No write template for type:', rhsField.fieldType);
       }
     }
 
@@ -237,7 +246,7 @@ async function main() {
     auth: notionToken,
   });
 
-  const sourceData = await axios.get(jsonUrl).then(resp => resp.data);
+  const sourceData = await axios.get(jsonUrl).then((resp) => resp.data);
 
   await syncListToNotionDb(sourceData, notion, dbId, {
     lhsFields: githubFriendLinkListFields,
