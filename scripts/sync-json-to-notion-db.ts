@@ -68,10 +68,10 @@ async function traverseDbElementWise(
   );
 }
 
-async function syncJsonDataToNotionDb(
+async function syncListToNotionDb(
+  sourceData: Array<any>,
   notion: Client,
   notionDbId: string,
-  sourceJsonUrl: string,
   fieldMappingRequest: FieldMappingRequest
 ) {
   const sourcePrimaryKey = fieldMappingRequest.lhsPrimaryKey;
@@ -92,9 +92,6 @@ async function syncJsonDataToNotionDb(
   console.log("Destination table primary key:", targetPrimaryKey);
 
   console.log("Getting source data...");
-  const sourceResp = await axios.get(sourceJsonUrl);
-  const sourceData = sourceResp.data;
-  console.log("Source table URL:", sourceJsonUrl);
   console.log("Source date length:", sourceData.length);
   console.log("Source table primary key:", sourcePrimaryKey);
 
@@ -275,7 +272,7 @@ function main() {
     auth: notionToken,
   });
 
-  syncJsonDataToNotionDb(notion, dbId, jsonUrl, {
+  syncListToNotionDb([], notion, dbId, {
     lhsFields: githubFriendLinkListFields,
     rhsFields: notionFriendLinkListFields,
     lhsPrimaryKey: "link",
