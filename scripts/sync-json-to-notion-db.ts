@@ -20,6 +20,7 @@ import { makeLevel2Map } from "../src/utils/make-level2-map";
 import { makeL1Map } from "../src/utils/make-level1-map";
 import { slowDown } from "../src/utils/slow";
 import { traverseDbElementWise } from "../src/notion-relateds/utils/traverse-db-elements";
+import axios from "axios";
 
 dotenv.config();
 
@@ -95,19 +96,31 @@ async function syncListToNotionDb(
   // deleteList 的每个元素是 notion block id（page 也是 block）
   let deleteList = new Set<string>();
 
+  // 每个元素是一个 { page_id: xxx, properties: { [PropertyName]: propertyValue } }
+  let updateList: any[] = [];
+
   // addList 的每个元素是 lhs table 的 key 值
   let addList = new Set<string>();
 
+  // 遍历 Notion DB，得出以下信息（把它们组合在一起也叫做 Patch）：
+  // 1. 哪条记录的哪个字段需要更新
+  // 2. 哪条记录需要删除
+  // 3. 哪条记录需要插入
+  // 注意：我们只是在这个函数里面收集 1,2,3，并不真正地去执行更新/删除/插入操作，这些操作的执行是在后面。
+  // 这是一种思想：把更新过程拆分为两个相对独立的子过程，分别是 Diff 过程 和 Apply 过程，
+  // Diff 过程负责生成 Patch, Apply 过程负责应用 Patch.
+  // 这样做的好处是什么？方便调试。
   await traverseDbElementWise(
     notion,
     notionDbId,
     20,
     async (pageId, pageObject, datum, hasMore) => {
-      console.log(pageId + ":", pageObject);
       const key = datum[targetPrimaryKey];
-      console.log(key + ":", datum);
+
+      console.log(`Check ${pageId},${key}`);
 
       if (key && sourceDataIndex[key]) {
+        console.log('Primary key exist both on rhs and lhs');
         const lhs = sourceDataIndex[key];
         const rhs = datum;
         const associations = fieldMappingRequest.associations;
@@ -126,12 +139,10 @@ async function syncListToNotionDb(
 
           const l = lhs[lhsField.fieldName];
           const r = rhs[rhsField.fieldName];
-          console.log(`lhs: (${lhsField.fieldName}, ${l})`);
-          console.log(`rhs: (${rhsField.fieldName}, ${r})`);
-          console.log(`isEqual: ${equalQ(l, r)}`);
-          if (!equalQ(l, r)) {
+          const isEqual = equalQ(l, r);
+          console.log(`Check equal: (${lhsField.fieldName}, ${l}) -- (${rhsField.fieldName}, ${r}) => ${isEqual}`);
+          if (!isEqual) {
             let desiredRhsValue = l;
-            console.log("Desired rhs value:", desiredRhsValue);
 
             if (reconcilerMap[lhsField.fieldType]) {
               const reconcilerOperator =
@@ -146,21 +157,15 @@ async function syncListToNotionDb(
               rhsField.fieldType
             ];
             if (writeTemplate) {
-              console.log("Updating...");
-              const updatePropertyResponse = await notion.pages.update({
-                page_id: pageId,
-                properties: {
-                  [rhsField.fieldName]: writeTemplate(desiredRhsValue),
-                },
-              });
-              console.log("Updated:", updatePropertyResponse.id);
-              await slowDown(400);
+              console.log(`Update ${pageId}, ${key}: (${rhsField.fieldName}, ${r}) -> ${desiredRhsValue}`);
+              updateList.push({ page_id: pageId, properties: { [rhsField.fieldName]: writeTemplate(desiredRhsValue) } });
             }
           }
         }
         delete sourceDataIndex[key];
       } else {
         deleteList.add(pageId);
+        console.log(`Delete ${pageId}:`, datum);
       }
 
       if (hasMore) {
@@ -170,7 +175,13 @@ async function syncListToNotionDb(
   );
 
   for (const key in sourceDataIndex) {
+    console.log(`Insert ${key}`);
     addList.add(key);
+  }
+
+  for (const prop of updateList) {
+    const resp = await notion.pages.update(prop);
+
   }
 
   for (const pageId of deleteList) {
@@ -209,12 +220,11 @@ async function syncListToNotionDb(
   }
 }
 
-function main() {
+async function main() {
   // Get db id from commandline argv,
   // It is assume that this code execute via ts-node <modulepath> <dbId>
 
   const testDbId = "63d3f33b481b438f87c055710d30df8b";
-  const testJsonUrl = "http://localhost:3000/test/testjson.json";
 
   const dbId = testDbId ?? (process.env["NOTION_DB_ID"] as string);
   const notionToken = process.env["NOTION_TOKEN"] as string;
@@ -227,7 +237,9 @@ function main() {
     auth: notionToken,
   });
 
-  syncListToNotionDb([], notion, dbId, {
+  const sourceData = await axios.get(jsonUrl).then(resp => resp.data);
+
+  await syncListToNotionDb(sourceData, notion, dbId, {
     lhsFields: githubFriendLinkListFields,
     rhsFields: notionFriendLinkListFields,
     lhsPrimaryKey: "link",
