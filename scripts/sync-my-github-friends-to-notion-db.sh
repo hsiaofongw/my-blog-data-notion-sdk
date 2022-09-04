@@ -1,6 +1,7 @@
 #!/bin/bash
 
-source .env
+# 部署到目标机器时，.env 文件不会（也不应该）出现，仅仅是测试的时候用
+# source .env
 
 jsonUrl=$DATA_GITHUB_FRIEND_LINK_LIST_JSON
 notionDbId=$NOTION_FRIEND_LINK_LIST_DB_ID
