@@ -12,7 +12,7 @@ spec:
         app: get-notion-rss-feeds
     spec:
       containers:
-        - image: ghcr.io/hsiaofongw/get-notion-rss-feeds:0.0.7
+        - image: ghcr.io/hsiaofongw/get-notion-rss-feeds:0.0.8
           name: get-notion-rss-feeds
           env:
             - name: DATA_GITHUB_FRIEND_LINK_LIST_JSON
