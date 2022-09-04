@@ -1,0 +1,121 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: card-list-rearrangement
+spec:
+  schedule: "0 0 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: card-list-rearrangement
+            image: ghcr.io/hsiaofongw/get-notion-rss-feeds:0.0.8
+            imagePullPolicy: IfNotPresent
+            command:
+            - /bin/bash
+            - scripts/rearrange-my-notion-cards-db.sh
+            env:
+            - name: DATA_GITHUB_FRIEND_LINK_LIST_JSON
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap
+                  key: data_github_friend_link_list_json
+                  optional: false
+            - name: FEED_FAKENAME
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap 
+                  key: feed_fakename
+                  optional: false
+            - name: FEED_DESCRIPTION
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap 
+                  key: feed_description
+                  optional: false
+            - name: FEED_HOME_PAGE
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap 
+                  key: feed_home_page
+                  optional: false
+            - name: FEED_FAVICON
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap 
+                  key: feed_favicon
+                  optional: false
+            - name: FEED_EMAIL
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap 
+                  key: feed_email
+                  optional: false
+            - name: FEED_COPYRIGHT
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap 
+                  key: feed_copyright
+                  optional: false
+            - name: FEED_LINK_JSON
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap 
+                  key: feed_link_json
+                  optional: false
+            - name: FEED_LINK_ATOM
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap 
+                  key: feed_link_atom
+                  optional: false
+            - name: FEED_CATEGORY
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap 
+                  key: feed_category
+                  optional: false
+            - name: FEED_GENERATOR
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap 
+                  key: feed_generator
+                  optional: false
+            - name: NOTION_FRIEND_LINK_LIST_DB_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap
+                  key: friend_link_list_db_id
+                  optional: false
+            - name: EXPEDIENT_HOMEPAGE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap
+                  key: homepage_url
+                  optional: false
+            - name: REDIS_HOSTNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap
+                  key: redis_hostname
+                  optional: false
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap
+                  key: redis_port
+                  optional: false
+            - name: NOTION_ARTICLE_LIST_DB_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: get-notion-rss-feeds-configmap
+                  key: article_list_db_id
+                  optional: false
+            - name: NOTION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: notion-integration-keys
+                  key: get-notion-rss-feeds-integration-key
+                  optional: false
+          restartPolicy: Never

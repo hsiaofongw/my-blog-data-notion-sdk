@@ -2,7 +2,8 @@
 
 packageName="get-notion-rss-feeds"
 githubUserName="hsiaofongw"
-fullTagName="ghcr.io/$githubUserName/$packageName:$1"
+tagName="$1"
+fullTagName="ghcr.io/$githubUserName/$packageName:$tagName"
 platform="linux/amd64"
 
 echo "Full tag name is $fullTagName"
