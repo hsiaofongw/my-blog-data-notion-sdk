@@ -9,7 +9,8 @@ notionTokenEnvName='NOTION_TOKEN'
 lhsPrimaryKey='link'
 rhsPrimaryKey='Link'
 
-ts-node scripts/sync-json-to-notion-db.ts \
+NODE_OPTIONS="-r ts-node/register --no-warnings" node \
+  scripts/sync-json-to-notion-db.ts \
   --jsonUrl $jsonUrl \
   --notionDbId $notionDbId \
   --notionTokenEnvName $notionTokenEnvName \
