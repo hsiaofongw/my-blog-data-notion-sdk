@@ -21,6 +21,7 @@ jobs:
         name: Build and push
         uses: docker/build-push-action@v3
         with:
+          context: .
           push: true
           tags: hsiaofongw/get-notion-rss-feeds:0.0.9
           
