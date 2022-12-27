@@ -1,4 +1,4 @@
-import { parseISO } from 'date-fns';
+import { parseISO } from "date-fns";
 
 export const writePropertyTemplates = {
   title: (content: string) => ({
@@ -16,8 +16,13 @@ export const writePropertyTemplates = {
 };
 
 export const readPropertyMethods = {
-  title: (propertyItem: any): string => propertyItem.results[0].title.text.content,
-  rich_text: (propertyItem: any): string => propertyItem.results[0].rich_text.text.content,
+  title: (propertyItem: any): string =>
+    propertyItem.results[0].title.text.content,
+  rich_text: (propertyItem: any): string =>
+    propertyItem.results[0].rich_text.text.content,
   url: (propertyItem: any): string => propertyItem.url,
   date: (propertyItem: any): Date => parseISO(propertyItem.date.start),
-}
+  last_edited_time: (propertyItem: any): Date =>
+    parseISO(propertyItem.last_edited_time),
+  number: (propertyItem: any): number => parseFloat(propertyItem.number),
+};

@@ -309,7 +309,7 @@ async function main() {
       associations: associations,
     });
   } else {
-    console.log('Missing required arguments.');
+    console.log("Missing required arguments.");
   }
 }
 

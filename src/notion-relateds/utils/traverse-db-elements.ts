@@ -1,5 +1,5 @@
 import { Client } from "@notionhq/client";
-import { slowDown } from '../../../src/utils/slow';
+import { slowDown } from "../../../src/utils/slow";
 import { readPropertyMethods } from "../write-property-templates";
 import { traverseNotionDbPages } from "./traverse-db-pages";
 
@@ -31,7 +31,10 @@ export async function traverseDbElementWise(
             .retrieve({ page_id: page.id, property_id: prop.id })
             .then((valueObject) =>
               (readPropertyMethods as any)[prop.type](valueObject)
-            );
+            )
+            .catch((_) => {
+              console.log("no readPropertyMethod for type:", prop.type);
+            });
           datum[propKey] = value;
           await slowDown(400);
         }
