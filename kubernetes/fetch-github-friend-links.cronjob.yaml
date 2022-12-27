@@ -1,20 +1,20 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: card-list-rearrangement
+  name: fetch-github-link-list-and-sync-into-notion-db
 spec:
-  schedule: "0 0 * * *"
+  schedule: "0 * * * *"
   jobTemplate:
     spec:
       template:
         spec:
           containers:
-          - name: card-list-rearrangement
+          - name: fetch-github-link-list-and-sync-into-notion-db
             image: ghcr.io/hsiaofongw/get-notion-rss-feeds:0.0.8
             imagePullPolicy: IfNotPresent
             command:
             - /bin/bash
-            - scripts/rearrange-my-notion-cards-db.sh
+            - scripts/sync-my-github-friends-to-notion-db.sh
             env:
             - name: DATA_GITHUB_FRIEND_LINK_LIST_JSON
               valueFrom:

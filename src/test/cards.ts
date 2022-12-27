@@ -1,0 +1,68 @@
+export const cards = [
+  {
+    title: "风渐远",
+    link: "https://www.naraku.cn/",
+    avatar: "https://www.naraku.cn/res/avatar.png",
+    description: "临渊羡鱼,莫如退而结网",
+    addDate: "2021-03-05",
+    dateVerified: true,
+  },
+  {
+    title: "TszHong",
+    description: "本人 14 歲",
+    link: "https://tszhong0411.vercel.app",
+    avatar: "https://tszhong0411.vercel.app/img/logo.png",
+    addDate: "2021-03-15",
+    dateVerified: true,
+  },
+  {
+    title: "Ryan4Yin's Space",
+    description: "赞美快乐~",
+    link: "https://ryan4yin.space/",
+    avatar:
+      "https://www.gravatar.com/avatar/2362ce7bdf2845a92240cc2f6609e001?s=240",
+    addDate: "2021-03-15",
+    dateVerified: true,
+  },
+  {
+    title: "真白的年轮面包",
+    description: "ねぇ、君は何色になりたい？",
+    link: "https://mashiro.best",
+    avatar:
+      "https://file.moetu.org/images/2019/11/10/avatar632a06e56f4a2ce5.jpg",
+    addDate: "2021-03-18",
+    dateVerified: true,
+  },
+  {
+    title: "mes ames",
+    description: "moi的一般通过小站",
+    link: "https://moi-mo.github.io",
+    avatar: "https://i.loli.net/2020/03/08/VRT2zfWZiLrUJPX.jpg",
+    addDate: "2021-03-19",
+    dateVerified: true,
+  },
+  {
+    title: "静かな森",
+    description: "致虚极，守静笃。",
+    link: "https://innei.ren/",
+    avatar: "https://cdn.innei.ren/avatar.png",
+    addDate: "2021-03-23",
+    dateVerified: true,
+  },
+  {
+    title: "椎咲良田",
+    description: "快走吧 趁风停止之前",
+    link: "https://sanshiliuxiao.top",
+    avatar: "https://i.loli.net/2019/02/24/5c71bf051a8f2.jpg",
+    addDate: "2021-03-24",
+    dateVerified: true,
+  },
+  {
+    title: "椎咲良田123",
+    description: "快走吧 趁风停止之前",
+    link: "https://sanshiliuxiao123.top",
+    avatar: "https://i.loli.net/2019/02/24/5c71bf051a8f2.jpg",
+    addDate: "2021-03-24",
+    dateVerified: true,
+  },
+];
