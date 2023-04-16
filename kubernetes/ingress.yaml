@@ -3,14 +3,15 @@ kind: Ingress
 metadata:
   name: get-notion-rss-feeds
   annotations:
-    kubernetes.io/ingress.class: "public"
-    cert-manager.io/issuer: "letsencrypt-prod"
-    nginx.ingress.kubernetes.io/enable-cors: "true"
+    cert-manager.io/cluster-issuer: letsencrypt
 spec:
   tls:
     - hosts:
         - exploro.one
       secretName: exploro-one-tls-secret
+    - hosts:
+        - beyondstars.xyz
+      secretName: beyondstars-xyz-tls-secret
   rules:
     - host: exploro.one
       http:
@@ -22,20 +23,6 @@ spec:
                 name: get-notion-rss-feeds
                 port:
                   number: 80
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: get-notion-rss-feeds-entry-2
-  annotations:
-    kubernetes.io/ingress.class: "public"
-    cert-manager.io/issuer: "letsencrypt-prod"
-spec:
-  tls:
-    - hosts:
-        - beyondstars.xyz
-      secretName: beyondstars-xyz-tls-secret
-  rules:
     - host: beyondstars.xyz
       http:
         paths:
